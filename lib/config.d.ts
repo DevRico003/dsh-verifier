@@ -108,6 +108,8 @@ export interface CheckpointConfig {
     drop: number;
     /** A reading below `threshold` that rose less than this since the previous checkpoint counts as stalled. */
     minRise: number;
+    /** Consecutive stalled readings before a steer (a fall steers at once). */
+    stallReadings: number;
     /** Checkpoint steers per turn. */
     maxSteers: number;
     /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */

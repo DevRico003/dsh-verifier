@@ -25,6 +25,8 @@ interface CheckpointState {
   turn: number
   lastCheckpointStep: number
   lastScore: number | undefined
+  /** Consecutive low readings without a rise; a steer needs `stallReadings` of them. */
+  stalls: number
   steers: number
   inFlight: boolean
   debtNudgedAt: number | undefined
@@ -73,7 +75,7 @@ export function installCheckpoint(ctx: Context, deps: CheckpointDeps): void {
     const previous = states.get(agent)
     const state: CheckpointState = previous !== undefined && previous.turn === turn
       ? previous
-      : { turn, lastCheckpointStep: 0, lastScore: undefined, steers: 0, inFlight: false, debtNudgedAt: undefined }
+      : { turn, lastCheckpointStep: 0, lastScore: undefined, stalls: 0, steers: 0, inFlight: false, debtNudgedAt: undefined }
     states.set(agent, state)
 
     // Gate debt: cheap, no model call.
@@ -125,11 +127,17 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
     deps.log.warn(`dsh-verifier: checkpoint at step ${step} of ${agent.id} produced no verdict (${measured.sources.join(',')})`)
     return
   }
-  const reason = checkpointTrigger(measured.score, state.lastScore, checkpoint.threshold, checkpoint.drop, checkpoint.minRise)
-  deps.log.info(`dsh-verifier: checkpoint turn ${turn} step ${step} of ${agent.id}: progress ${measured.score.toFixed(2)} (previous ${state.lastScore?.toFixed(2) ?? 'n/a'}, ${Date.now() - started}ms)${reason !== undefined ? `; steering: ${reason}` : ''}`)
+  let reason = checkpointTrigger(measured.score, state.lastScore, checkpoint.threshold, checkpoint.drop, checkpoint.minRise)
+  // One low reading on a long goal is noise; a fall is acted on at once, a stall only once it persists.
+  if (reason !== undefined && reason.includes('stalled')) {
+    state.stalls++
+    if (state.stalls < checkpoint.stallReadings) reason = undefined
+  } else if (reason === undefined) state.stalls = 0
+  deps.log.info(`dsh-verifier: checkpoint turn ${turn} step ${step} of ${agent.id}: progress ${measured.score.toFixed(2)} (previous ${state.lastScore?.toFixed(2) ?? 'n/a'}, stalls ${state.stalls}, ${Date.now() - started}ms)${reason !== undefined ? `; steering: ${reason}` : ''}`)
   state.lastScore = measured.score
   const idle = (): boolean => (agent.status as string) === 'idle'
   if (reason === undefined) return
+  state.stalls = 0
   if (idle()) return
   const set = resolveCriteria(config.gate.criteriaMode === 'auto' ? (trajectory.toolCalls > 0 ? 'coding' : 'general') : config.gate.criteria)
   const options: VerifierOptions = {

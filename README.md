@@ -119,6 +119,7 @@ verifier:
     threshold: 0.3                 # steer when progress is below this
     drop: 0.25                     # or fell by this much since the last checkpoint
     minRise: 0.05                  # below threshold and rising less than this = stalled
+    stallReadings: 2               # consecutive stalled readings before a steer; a fall steers at once
     maxSteers: 3                   # per turn
     gateDebtEdits: 12              # remind after this many file edits without a verifier_* call (0 = off)
     editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]
@@ -141,7 +142,7 @@ verifier:
 
 An unattended coding run is often a single turn of several hundred steps, and an end-of-turn gate verifies that turn once, at the end. Two mechanisms make one turn verifiable while it runs, both hooked into `agent/pre-step`:
 
-**Progress checkpoints.** Every `checkpoint.everySteps` steps (from `minSteps` on) the turn so far is scored with the reference progress prompt, verbatim, one checkpoint (the current state), letter only, `evaluations` repeats. That is the reference's `ProgressTracker.update`. Scoring runs in the background; the agent keeps working. The first checkpoint sets the baseline (a long goal reads low early, by design). From the second on, a fall by `drop` or a reading that stays below `threshold` without rising by `minRise` (the reference's plateau and regression patterns) gets the turn assessed with findings, and the agent receives a `[dsh-verifier checkpoint]` message at its next step boundary, capped at `maxSteers` per turn. A run that keeps climbing costs one cheap call per checkpoint and no steer.
+**Progress checkpoints.** Every `checkpoint.everySteps` steps (from `minSteps` on) the turn so far is scored with the reference progress prompt, verbatim, one checkpoint (the current state), letter only, `evaluations` repeats. That is the reference's `ProgressTracker.update`. Scoring runs in the background; the agent keeps working. The first checkpoint sets the baseline (a long goal reads low early, by design). From the second on, a fall by `drop`, or `stallReadings` consecutive readings below `threshold` that did not rise by `minRise` (the reference's regression and plateau patterns), gets the turn assessed with findings, and the agent receives a `[dsh-verifier checkpoint]` message at its next step boundary, capped at `maxSteers` per turn. A run that keeps climbing costs one cheap call per checkpoint and no steer.
 
 **Gate debt.** When the agent has made `gateDebtEdits` file edits since its last `verifier_*` call, it receives one reminder to gate the node (no model call). The `graph-verified-coding` skill asks for one `verifier_assess` per completed multi-file node; this is what catches an agent that forgot.
 

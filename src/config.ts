@@ -115,6 +115,8 @@ export interface CheckpointConfig {
   drop: number
   /** A reading below `threshold` that rose less than this since the previous checkpoint counts as stalled. */
   minRise: number
+  /** Consecutive stalled readings before a steer (a fall steers at once). */
+  stallReadings: number
   /** Checkpoint steers per turn. */
   maxSteers: number
   /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */
@@ -204,6 +206,7 @@ export const CheckpointConfig: z<CheckpointConfig> = z.object({
   threshold: z.number().default(0.3),
   drop: z.number().default(0.25),
   minRise: z.number().default(0.05),
+  stallReadings: z.number().default(2),
   maxSteers: z.number().default(3),
   gateDebtEdits: z.number().default(12),
   editTools: z.array(z.string()).default(['write', 'edit', 'str_replace_editor', 'apply_patch', 'notebook_edit']),
