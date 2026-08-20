@@ -30,7 +30,7 @@ export interface BackendConfig {
   concurrency: number
   /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
   retriesOnFallback: number
-  /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. */
+  /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. Saves prefill work at the price of doubling wall-clock; on a local vLLM with fast prefill leave it off. */
   warmPrefix: boolean
 }
 
@@ -149,7 +149,7 @@ export const BackendConfig: z<BackendConfig> = z.object({
   topLogprobs: z.number().default(20),
   concurrency: z.number().default(4),
   retriesOnFallback: z.number().default(1),
-  warmPrefix: z.boolean().default(true),
+  warmPrefix: z.boolean().default(false),
 })
 
 export const GateConfig: z<GateConfig> = z.object({

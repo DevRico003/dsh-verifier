@@ -22,7 +22,9 @@
           topLogprobs: 20
           concurrency: 4
           retriesOnFallback: 1
-          warmPrefix: true
+          # Serial warm-up of the prompt prefix saves prefill work but doubles gate wall-clock;
+          # on a local vLLM (prefill ~13k tok/s) the fan-out is the better trade.
+          warmPrefix: false
         gate:
           enabled: true
           threshold: 0.6

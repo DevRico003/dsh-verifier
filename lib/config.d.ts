@@ -28,7 +28,7 @@ export interface BackendConfig {
     concurrency: number;
     /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
     retriesOnFallback: number;
-    /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. */
+    /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. Saves prefill work at the price of doubling wall-clock; on a local vLLM with fast prefill leave it off. */
     warmPrefix: boolean;
 }
 export interface GateConfig {
