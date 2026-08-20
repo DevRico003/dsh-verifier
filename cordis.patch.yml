@@ -25,6 +25,9 @@
           # Serial warm-up of the prompt prefix saves prefill work but doubles gate wall-clock;
           # on a local vLLM (prefill ~13k tok/s) the fan-out is the better trade.
           warmPrefix: false
+          # The verifier_* tools (node gates the agent calls itself) think at `low`: a minute or two
+          # per gate instead of five to ten. The end-of-turn gate and checkpoints use `reasoningEffort`.
+          toolReasoningEffort: low
         gate:
           enabled: true
           threshold: 0.6
@@ -47,6 +50,8 @@
           maxTotalChars: 300000
           # A turn that opens with "Continue." gets this many earlier turns prepended.
           continuationTurns: 1
+          # Trajectory cap for the verifier_* tools; the end-of-turn gate uses maxTotalChars.
+          toolMaxTotalChars: 80000
         snapshot:
           # `ui_snapshot`: headless screenshots (viewports x light/dark) for analyze_image.
           enabled: true

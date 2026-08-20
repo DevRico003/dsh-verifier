@@ -87,6 +87,7 @@ verifier:
     concurrency: 4
     retriesOnFallback: 1
     warmPrefix: false              # true = first call per prompt prefix alone, then the rest (saves prefill, doubles wall-clock)
+    toolReasoningEffort: low       # effort for the verifier_* tools; the gate and checkpoints use reasoningEffort
     timeoutMs: 600000
   gate:
     enabled: true
@@ -109,6 +110,7 @@ verifier:
     maxStepChars: 6000             # per tool output / message excerpt
     maxTotalChars: 300000          # whole turn; oldest steps are elided first
     continuationTurns: 1           # a turn opening with "Continue." gets this many earlier turns prepended
+    toolMaxTotalChars: 80000       # trajectory cap for the verifier_* tools
   checkpoint:
     enabled: true                  # mid-turn verification, see below
     minSteps: 40
@@ -149,7 +151,7 @@ Turn ends still get the full gate. A goal that runs in phases (one turn per phas
 
 One gate pass is `criteria × evaluations` verifier calls, three by default, fanned out together. `warmPrefix: true` runs the first call alone so the server caches the prompt prefix (task, trajectory, scale; the criterion sits at the tail) before the rest go out; that is the reference's 3.4× saving in uncached input tokens, worth it on a priced API or a slow prefill. On a local vLLM that prefills at over 10k tokens per second it only doubles the wall-clock of every gate, so it ships off.
 
-The verifier thinks. `reasoningEffort: high` with a 32k budget is the setting the reference used for its DeepSeek-V4-Flash self-verification numbers (best-of-3 86.5% against 79.4% pass@1 on Terminal-Bench 2.1), and it is the default here. On a local vLLM that means a gate pass over a long turn takes one to several minutes of wall clock: prefill of the trajectory once, then reasoning per call. `reasoningEffort: none` brings a short turn down to 6 to 10 seconds but the verdict is a one-shot reading; use it for chat-heavy sessions, keep `high` for unattended coding runs where the gate is what catches the errors.
+The verifier thinks. `reasoningEffort: high` with a 32k budget is the setting the reference used for its DeepSeek-V4-Flash self-verification numbers (best-of-3 86.5% against 79.4% pass@1 on Terminal-Bench 2.1), and it is the default here. On a local vLLM that means a gate pass over a long turn takes one to several minutes of wall clock: prefill of the trajectory once, then reasoning per call. `reasoningEffort: none` brings a short turn down to 6 to 10 seconds but the verdict is a one-shot reading; use it for chat-heavy sessions, keep `high` for unattended coding runs where the gate is what catches the errors. The `verifier_*` tools, which the agent calls as node gates many times per run, think at `toolReasoningEffort: low` over a trajectory capped at `toolMaxTotalChars`; at `high` with the full trajectory one node gate took ten minutes on a long turn, which is too slow for something that should happen after every node.
 
 With thinking on, vLLM returns the reasoning tokens inside `logprobs.content` as well; the score reader walks the token stream and takes the letter after the last `<score>` tag, so that is handled. A reply that spends the whole budget on reasoning carries no answer and is reported as a failed call (retried once, then unscored), never as a 0.5.
 

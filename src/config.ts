@@ -30,6 +30,8 @@ export interface BackendConfig {
   concurrency: number
   /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
   retriesOnFallback: number
+  /** Reasoning effort for the `verifier_*` tools (node gates the agent calls itself); empty = same as `reasoningEffort`. `low` keeps a node gate at a minute or two. */
+  toolReasoningEffort: string
   /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. Saves prefill work at the price of doubling wall-clock; on a local vLLM with fast prefill leave it off. */
   warmPrefix: boolean
 }
@@ -77,6 +79,8 @@ export interface TrajectoryConfig {
   maxTotalChars: number
   /** Earlier turns prepended when a turn is a continuation ("Continue."). */
   continuationTurns: number
+  /** Cap for the trajectory handed to the `verifier_*` tools (the end-of-turn gate uses `maxTotalChars`). */
+  toolMaxTotalChars: number
 }
 
 export interface SnapshotConfig {
@@ -150,6 +154,7 @@ export const BackendConfig: z<BackendConfig> = z.object({
   concurrency: z.number().default(4),
   retriesOnFallback: z.number().default(1),
   warmPrefix: z.boolean().default(false),
+  toolReasoningEffort: z.string().default('low'),
 })
 
 export const GateConfig: z<GateConfig> = z.object({
@@ -178,6 +183,7 @@ export const TrajectoryConfig: z<TrajectoryConfig> = z.object({
   maxStepChars: z.number().default(6000),
   maxTotalChars: z.number().default(300_000),
   continuationTurns: z.number().default(1),
+  toolMaxTotalChars: z.number().default(80_000),
 })
 
 export const SnapshotConfig: z<SnapshotConfig> = z.object({

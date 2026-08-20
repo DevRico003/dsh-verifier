@@ -26,8 +26,10 @@ export interface VerifierOptions {
   onError: 'tie' | 'raise'
   /** Re-ask the backend when a completion carries no parseable score or failed (default 1). */
   retriesOnFallback?: number
-  /** Finish the first call per shared prompt prefix before fanning out the rest (prefix-cache warm-up, default true). */
+  /** Finish the first call per shared prompt prefix before fanning out the rest (prefix-cache warm-up). */
   warmPrefix?: boolean
+  /** Per-call reasoning effort; unset = backend default. */
+  reasoningEffort?: string
   /** Optional sink for per-call diagnostics. */
   onCall?: (info: CallInfo) => void
 }
@@ -140,6 +142,7 @@ async function scoreDirectedPair(
           temperature: options.temperature,
           logprobs: options.backend.supportsLogprobs,
           topLogprobs: options.topLogprobs,
+          ...options.reasoningEffort !== undefined ? { reasoningEffort: options.reasoningEffort } : {},
           ...options.signal !== undefined ? { signal: options.signal } : {},
         })
         const slotA = extractScore(completion.text, completion.tokens, PAIRWISE_TAG_A, pairwiseValue)
@@ -246,6 +249,7 @@ export async function assess(problem: string, trajectory: string, options: Verif
             temperature: options.temperature,
             logprobs: options.backend.supportsLogprobs,
             topLogprobs: options.topLogprobs,
+          ...options.reasoningEffort !== undefined ? { reasoningEffort: options.reasoningEffort } : {},
             ...options.signal !== undefined ? { signal: options.signal } : {},
           })
           const extracted = extractScore(completion.text, completion.tokens, ASSESS_TAG, progressValue)
@@ -299,7 +303,7 @@ export async function progress(
   problem: string,
   trajectory: string,
   nSteps: number,
-  options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix'>,
+  options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix' | 'reasoningEffort'>,
 ): Promise<ProgressResult> {
   const run = limiter(options.concurrency)
   const prompt = buildProgressPrompt(problem, trajectory, nSteps)
@@ -312,6 +316,7 @@ export async function progress(
         temperature: options.temperature,
         logprobs: options.backend.supportsLogprobs,
         topLogprobs: options.topLogprobs,
+        ...options.reasoningEffort !== undefined ? { reasoningEffort: options.reasoningEffort } : {},
         ...options.signal !== undefined ? { signal: options.signal } : {},
       })
       const extracted = extractScore(completion.text, completion.tokens, PROGRESS_TAG, progressValue)

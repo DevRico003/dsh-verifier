@@ -13,6 +13,8 @@ import type { TokenLogprob } from './scoring.js'
 export interface CompletionRequest {
   prompt: string
   system?: string
+  /** Per-call `reasoning_effort`; overrides the backend default when set. */
+  reasoningEffort?: string
   maxTokens: number
   temperature: number
   /** Request token logprobs (ignored by backends that cannot serve them). */
@@ -108,7 +110,7 @@ export class OpenAICompatibleBackend implements VerifierBackend {
       max_tokens: request.maxTokens,
       temperature: request.temperature,
       ...request.logprobs ? { logprobs: true, top_logprobs: request.topLogprobs } : {},
-      ...options.reasoningEffort !== undefined ? { reasoning_effort: options.reasoningEffort } : {},
+      ...(request.reasoningEffort ?? options.reasoningEffort) !== undefined ? { reasoning_effort: request.reasoningEffort ?? options.reasoningEffort } : {},
       ...options.extraBody ?? {},
     }
     const headers: Record<string, string> = { 'content-type': 'application/json' }

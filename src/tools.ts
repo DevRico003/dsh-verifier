@@ -35,6 +35,7 @@ function baseOptions(deps: ToolDeps, criteriaName: string | undefined, evaluatio
     onError: 'tie',
     retriesOnFallback: config.backend.retriesOnFallback,
     warmPrefix: config.backend.warmPrefix,
+    ...config.backend.toolReasoningEffort !== '' ? { reasoningEffort: config.backend.toolReasoningEffort } : {},
   }
 }
 
@@ -133,7 +134,7 @@ export function installTools(ctx: Context, deps: ToolDeps): void {
     async execute(args, exec) {
       const { task, answer, criteria, evaluations, includeTrajectory } = args as { task: string; answer: string; criteria?: string; evaluations?: number; includeTrajectory?: boolean }
       const config = deps.config()
-      const trace = includeTrajectory === false ? undefined : currentTurnTrace(exec.agent, config.trajectory)
+      const trace = includeTrajectory === false ? undefined : currentTurnTrace(exec.agent, { ...config.trajectory, maxTotalChars: config.trajectory.toolMaxTotalChars })
       const trajectory = trace === undefined
         ? `--- Agent final answer ---\n${answer}`
         : `${trace}\n\n--- Agent final answer (self-reported) ---\n${answer}`

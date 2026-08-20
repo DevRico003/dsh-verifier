@@ -28,6 +28,8 @@ export interface BackendConfig {
     concurrency: number;
     /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
     retriesOnFallback: number;
+    /** Reasoning effort for the `verifier_*` tools (node gates the agent calls itself); empty = same as `reasoningEffort`. `low` keeps a node gate at a minute or two. */
+    toolReasoningEffort: string;
     /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. Saves prefill work at the price of doubling wall-clock; on a local vLLM with fast prefill leave it off. */
     warmPrefix: boolean;
 }
@@ -72,6 +74,8 @@ export interface TrajectoryConfig {
     maxTotalChars: number;
     /** Earlier turns prepended when a turn is a continuation ("Continue."). */
     continuationTurns: number;
+    /** Cap for the trajectory handed to the `verifier_*` tools (the end-of-turn gate uses `maxTotalChars`). */
+    toolMaxTotalChars: number;
 }
 export interface SnapshotConfig {
     /** Register the `ui_snapshot` tool (headless Playwright screenshots for visual evidence). */

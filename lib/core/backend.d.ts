@@ -11,6 +11,8 @@ import type { TokenLogprob } from './scoring.js';
 export interface CompletionRequest {
     prompt: string;
     system?: string;
+    /** Per-call `reasoning_effort`; overrides the backend default when set. */
+    reasoningEffort?: string;
     maxTokens: number;
     temperature: number;
     /** Request token logprobs (ignored by backends that cannot serve them). */

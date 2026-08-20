@@ -321,3 +321,16 @@ test('a later turn that opens with "Continue." carries the goal objective forwar
   const t2solo = buildTrajectory(events, 2, { maxStepChars: 1000, maxTotalChars: 10000, continuationTurns: 0 })
   assert.ok(!t2solo.trace.includes('Earlier turn'))
 })
+
+
+test('OpenAICompatibleBackend sends the per-request reasoning effort over the backend default', async () => {
+  let body: Record<string, unknown> = {}
+  const backend = new OpenAICompatibleBackend({
+    baseURL: 'http://example.invalid/v1', model: 'm', timeoutMs: 1000, reasoningEffort: 'high',
+    fetchImpl: (async (_url: unknown, init: { body: string }) => { body = JSON.parse(init.body); return new Response(JSON.stringify({ choices: [{ message: { content: '<score> T </score>' } }] }), { status: 200 }) }) as unknown as typeof fetch,
+  })
+  await backend.complete({ prompt: 'p', maxTokens: 10, temperature: 1, logprobs: false, topLogprobs: 20, reasoningEffort: 'low' })
+  assert.equal(body['reasoning_effort'], 'low')
+  await backend.complete({ prompt: 'p', maxTokens: 10, temperature: 1, logprobs: false, topLogprobs: 20 })
+  assert.equal(body['reasoning_effort'], 'high')
+})

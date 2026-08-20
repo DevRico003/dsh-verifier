@@ -22,8 +22,10 @@ export interface VerifierOptions {
     onError: 'tie' | 'raise';
     /** Re-ask the backend when a completion carries no parseable score or failed (default 1). */
     retriesOnFallback?: number;
-    /** Finish the first call per shared prompt prefix before fanning out the rest (prefix-cache warm-up, default true). */
+    /** Finish the first call per shared prompt prefix before fanning out the rest (prefix-cache warm-up). */
     warmPrefix?: boolean;
+    /** Per-call reasoning effort; unset = backend default. */
+    reasoningEffort?: string;
     /** Optional sink for per-call diagnostics. */
     onCall?: (info: CallInfo) => void;
 }
@@ -97,4 +99,4 @@ export interface ProgressResult {
  * `ProgressTracker.update`): K repeats of the progress prompt, letter only,
  * averaged over the repeats that produced a verdict.
  */
-export declare function progress(problem: string, trajectory: string, nSteps: number, options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix'>): Promise<ProgressResult>;
+export declare function progress(problem: string, trajectory: string, nSteps: number, options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix' | 'reasoningEffort'>): Promise<ProgressResult>;
