@@ -15,13 +15,13 @@ Treat a coding task as a graph, never as a straight line. A **node** is one boun
 
 2. **Cut false edges.** List the nodes. For each pair ask: does the next node read the previous node's output? If not, cut the edge. Independent nodes run in parallel through `subagent` (fresh context) or the `workflow` tool (`parallel`, `pipeline`); dependent nodes run in sequence inline. Keep the graph small: two to four parallel branches on this backend, because every branch shares the same model slots. Done when every remaining edge carries real data.
 
-3. **Work node.** Implement one node at a time against its contract. Run the proving command inside the node (tests, the program, curl) and keep the output. Done when the node's contract is met with observed output in hand.
+3. **Work node.** Implement one node at a time against its contract. Run the proving command inside the node (tests, the program, curl) and keep the output. Done when the node's contract is met with observed output in hand and the node gate (step 4) has passed.
 
-4. **Gate.** Before a merge and before the final answer, verify:
+4. **Gate.** After every node that changed more than one file, before every merge, and before the final answer, verify:
    - Deterministic first: tests, type checks, lint, the command the task names. Fix the root cause, never the symptom.
    - For anything a browser renders: `ui_snapshot(url)` (headless, every viewport in light and dark in one call, console and page errors included), then `analyze_image` with `backend: detailed` on each returned path for the visual verdict. Fix console and page errors before judging the look. For clicking, typing and reading the DOM use the headless `browser_open`, `browser_interact`, `browser_read`, `browser_console`. Both leave the user's screen alone. `computer_observe` and `computer_action` drive the user's real desktop; they are for tasks about the user's desktop, never for checking your own web work.
-   - When evidence is ambiguous or the task is judgement-heavy: `verifier_assess` with the task text and the work plus its evidence; read the findings, repair what is right, rebut briefly what is wrong.
-   Done when every acceptance criterion has a passing observation.
+   - Then, not optionally: `verifier_assess` with `criteria: coding`, the node's contract as `task` and the work plus its observed evidence as `answer`. Read the findings, repair what is right, rebut briefly what is wrong. A result with `scoredCriteria: 0` is not a gate; fix the backend or report it.
+   Done when every acceptance criterion has a passing observation and the `verifier_assess` score is at or above the threshold.
 
 5. **Join.** When branches produced competing candidates (patches, designs, plans), pick with `verifier_select` (pairwise pivot tournament) instead of intuition; for two candidates `verifier_compare`. Merge the winner, then gate the merged result (step 4). Done when one candidate is chosen with its score and the merge passed its gate.
 
@@ -51,8 +51,8 @@ If a `[dsh-verifier]` message arrives after your turn, treat it as a failed gate
 
 **Design rounds.** A UI improvement round is: `ui_snapshot` before, `analyze_image` on each shot with a concrete question (contrast, spacing, hierarchy, clipped content, consistency with the design guidelines in use), change the code, `ui_snapshot` after with a `label` such as `round-2-after`, `analyze_image` again, keep both paths for the report. Two rounds minimum when the task names design quality; stop when a round yields no finding.
 
-**Gate placement.** Gate before merges and before the final answer. Skip gates on trivial single-edit steps; the cost is real and the verifier is a second opinion, not a substitute for running the code.
+**Gate placement.** One `verifier_assess` per completed multi-file node, one per merge, one before the final answer. Skip only single-file edits. For N nodes expect at least N + 1 calls; a two-hour build with two calls means the node gates were skipped. The verifier is a second opinion, not a substitute for running the code, so the deterministic checks always come first.
 
-**Subagent contracts.** Give each child the full contract of its node and the evidence it must return (which command output, which file paths). A child that returns narration without evidence failed its node; repair or rerun it.
+**Subagent contracts.** Give each child the full contract of its node and the evidence it must return (which command output, which file paths). Some hosts deliver a child's `report` only when the parent's turn ends, so never plan on the relay. Every child writes its full result to `.graph/<node>.md` in the workspace and ends its closing message with that path plus a ten-line summary; the parent reads the file as soon as the child's settle notice arrives, before starting any node that depends on it. A child that returns narration without evidence failed its node; repair or rerun it.
 
 **Hand back to the user** when a criterion cannot be decided without them (missing access, conflicting requirements, destructive actions). A turn that ends in a question is not gated.
