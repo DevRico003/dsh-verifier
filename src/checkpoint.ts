@@ -36,10 +36,17 @@ export interface CheckpointDeps {
   log: { info: (message: string) => void; warn: (message: string) => void; debug: (message: string) => void }
 }
 
-/** Pure decision: does this progress score call for a steer? */
-export function checkpointTrigger(score: number, previous: number | undefined, threshold: number, drop: number): string | undefined {
-  if (score < threshold) return `progress ${score.toFixed(2)} below ${threshold.toFixed(2)}`
-  if (previous !== undefined && previous - score >= drop) return `progress fell from ${previous.toFixed(2)} to ${score.toFixed(2)}`
+/**
+ * Pure decision: does this progress score call for a steer? The first
+ * checkpoint only sets the baseline: a long goal reads low early by design.
+ * From the second on, a fall by `drop`, or a reading that stays below
+ * `threshold` without rising by `minRise`, is the reference's plateau or
+ * regression pattern and earns a steer.
+ */
+export function checkpointTrigger(score: number, previous: number | undefined, threshold: number, drop: number, minRise: number): string | undefined {
+  if (previous === undefined) return undefined
+  if (previous - score >= drop) return `progress fell from ${previous.toFixed(2)} to ${score.toFixed(2)}`
+  if (score < threshold && score < previous + minRise) return `progress ${score.toFixed(2)} stalled below ${threshold.toFixed(2)} (previous ${previous.toFixed(2)})`
   return undefined
 }
 
@@ -118,7 +125,7 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
     deps.log.warn(`dsh-verifier: checkpoint at step ${step} of ${agent.id} produced no verdict (${measured.sources.join(',')})`)
     return
   }
-  const reason = checkpointTrigger(measured.score, state.lastScore, checkpoint.threshold, checkpoint.drop)
+  const reason = checkpointTrigger(measured.score, state.lastScore, checkpoint.threshold, checkpoint.drop, checkpoint.minRise)
   deps.log.info(`dsh-verifier: checkpoint turn ${turn} step ${step} of ${agent.id}: progress ${measured.score.toFixed(2)} (previous ${state.lastScore?.toFixed(2) ?? 'n/a'}, ${Date.now() - started}ms)${reason !== undefined ? `; steering: ${reason}` : ''}`)
   state.lastScore = measured.score
   const idle = (): boolean => (agent.status as string) === 'idle'

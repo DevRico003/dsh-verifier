@@ -258,9 +258,11 @@ test('progress(): reference progress prompt, one checkpoint, letter read from th
 })
 
 test('checkpointTrigger and verifierDebt', () => {
-  assert.equal(checkpointTrigger(0.2, undefined, 0.3, 0.25)?.startsWith('progress 0.20 below'), true)
-  assert.equal(checkpointTrigger(0.5, 0.8, 0.3, 0.25)?.startsWith('progress fell'), true)
-  assert.equal(checkpointTrigger(0.6, 0.7, 0.3, 0.25), undefined)
+  assert.equal(checkpointTrigger(0.2, undefined, 0.3, 0.25, 0.05), undefined, 'first checkpoint is the baseline')
+  assert.equal(checkpointTrigger(0.5, 0.8, 0.3, 0.25, 0.05)?.startsWith('progress fell'), true)
+  assert.equal(checkpointTrigger(0.2, 0.18, 0.3, 0.25, 0.05)?.includes('stalled'), true)
+  assert.equal(checkpointTrigger(0.28, 0.16, 0.3, 0.25, 0.05), undefined, 'rising counts as progress')
+  assert.equal(checkpointTrigger(0.6, 0.7, 0.3, 0.25, 0.05), undefined)
   const call = (name: string): { type: 'tool-call'; id: string; name: string; arguments: string } => ({ type: 'tool-call', id: name, name, arguments: '{}' })
   const events = [
     { type: 'turn/start', data: { turn: 1 } },

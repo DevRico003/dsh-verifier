@@ -23,8 +23,14 @@ export interface CheckpointDeps {
         debug: (message: string) => void;
     };
 }
-/** Pure decision: does this progress score call for a steer? */
-export declare function checkpointTrigger(score: number, previous: number | undefined, threshold: number, drop: number): string | undefined;
+/**
+ * Pure decision: does this progress score call for a steer? The first
+ * checkpoint only sets the baseline: a long goal reads low early by design.
+ * From the second on, a fall by `drop`, or a reading that stays below
+ * `threshold` without rising by `minRise`, is the reference's plateau or
+ * regression pattern and earns a steer.
+ */
+export declare function checkpointTrigger(score: number, previous: number | undefined, threshold: number, drop: number, minRise: number): string | undefined;
 /** The checkpoint message: the measured progress, then the assessment's findings. */
 export declare function renderCheckpoint(step: number, progressScore: number, reason: string, result: AssessResult, threshold: number, maxChars: number): string;
 export declare function renderDebtNudge(edits: number): string;

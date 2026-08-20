@@ -100,6 +100,8 @@ export interface CheckpointConfig {
     threshold: number;
     /** Steer when progress fell by at least this since the previous checkpoint. */
     drop: number;
+    /** A reading below `threshold` that rose less than this since the previous checkpoint counts as stalled. */
+    minRise: number;
     /** Checkpoint steers per turn. */
     maxSteers: number;
     /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */

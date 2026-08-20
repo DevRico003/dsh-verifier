@@ -61,6 +61,7 @@
           evaluations: 1
           threshold: 0.3
           drop: 0.25
+          minRise: 0.05
           maxSteers: 3
           # Remind the agent to gate after this many file edits without a verifier_* call.
           gateDebtEdits: 12
