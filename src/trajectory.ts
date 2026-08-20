@@ -11,6 +11,8 @@ export interface TrajectoryLimits {
   maxStepChars: number
   /** Cap for the whole serialized trajectory (oldest steps are elided first). */
   maxTotalChars: number
+  /** When a turn is a continuation (it opens with "Continue."), prepend this many earlier turns so the verifier sees the work they hold (default 1). */
+  continuationTurns?: number
 }
 
 export interface Trajectory {
@@ -48,6 +50,31 @@ function blockText(blocks: readonly { type: string; text?: string }[]): string {
  * @param limits - character caps.
  */
 export function buildTrajectory(events: readonly SessionEvent[], turn: number, limits: TrajectoryLimits): Trajectory {
+  const own = buildTurn(events, turn, limits)
+  const back = limits.continuationTurns ?? 1
+  if (back <= 0 || turn <= 1 || !isContinuation(own.firstTask)) return own
+  // Continuation turns (auto-continue after an interruption, a goal round that
+  // resumes) hold little of the work; the previous turn holds the edits and the
+  // command output the verifier needs. Prepend it, oldest first, within the cap.
+  const earlier: string[] = []
+  for (let t = Math.max(1, turn - back); t < turn; t++) {
+    const previous = buildTurn(events, t, limits)
+    if (previous.trace.trim() !== '') earlier.push(`=== Earlier turn ${t} (${previous.steps} steps) ===\n${previous.trace}`)
+  }
+  if (earlier.length === 0) return own
+  const combined = `${earlier.join('\n\n')}\n\n=== Current turn ${turn} ===\n${own.trace}`
+  const trace = combined.length > limits.maxTotalChars
+    ? `(earlier content elided)\n\n${combined.slice(combined.length - limits.maxTotalChars)}`
+    : combined
+  return { ...own, trace }
+}
+
+/** A turn that opens with "Continue." (auto-continue, goal resume) rather than a fresh request. */
+export function isContinuation(firstTask: string): boolean {
+  return /^\s*Continue\b/i.test(firstTask)
+}
+
+function buildTurn(events: readonly SessionEvent[], turn: number, limits: TrajectoryLimits): Trajectory & { firstTask: string } {
   let inTurn = false
   // The goal objective of a multi-turn goal run lives in an earlier turn; a later
   // turn often opens with "Continue." only. Carry the latest objective forward so
@@ -55,6 +82,7 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
   let goalObjective = ''
   let goalInThisTurn = false
   const taskParts: string[] = []
+  let firstTask = ''
   const pluginContexts: string[] = []
   const steps: string[] = []
   let current: string[] = []
@@ -88,7 +116,10 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
         // The task is what the human or the goal asked for. A goal round arrives with
         // `source.kind: 'goal'`; everything else (instructions, runtime snapshots,
         // plugin notices) is context for the verifier, not the task.
-        if (isTaskSource(event.data.source)) taskParts.push(text)
+        if (isTaskSource(event.data.source)) {
+          if (taskParts.length === 0) firstTask = text
+          taskParts.push(text)
+        }
         else if (text !== '') pluginContexts.push(truncate(text, limits.maxStepChars))
         break
       }
@@ -145,6 +176,7 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
 
   return {
     task,
+    firstTask,
     trace: trace + contextNote,
     steps: stepNumber,
     toolCalls,

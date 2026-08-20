@@ -70,6 +70,8 @@ export interface SelectConfig {
 export interface TrajectoryConfig {
     maxStepChars: number;
     maxTotalChars: number;
+    /** Earlier turns prepended when a turn is a continuation ("Continue."). */
+    continuationTurns: number;
 }
 export interface SnapshotConfig {
     /** Register the `ui_snapshot` tool (headless Playwright screenshots for visual evidence). */

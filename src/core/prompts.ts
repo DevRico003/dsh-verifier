@@ -47,9 +47,11 @@ const GENERAL: CriteriaSet = {
 }
 
 /**
- * Coding tasks. Verbatim from the reference criteria files: `specification`
- * from terminal_bench.md, `code_review` and `verification` from swe_bench.md
- * (with "issue" read as "task", since harness tasks are not GitHub issues).
+ * Coding tasks. From the reference criteria files: `specification` from
+ * terminal_bench.md, `code_review` and `verification` from swe_bench.md, with
+ * "issue" read as "task" and the patch defined as diff output or the file
+ * contents written through tools, since a harness trajectory carries edits as
+ * tool calls rather than as one diff.
  */
 const CODING: CriteriaSet = {
   groundTruthNote:
@@ -65,7 +67,7 @@ const CODING: CriteriaSet = {
       id: 'code_review',
       name: 'Code Quality',
       description:
-        'Review the agent\'s final patch (`diff --git ...`) as an experienced code reviewer would. Check syntactic validity, semantic correctness (right API, right types, right control flow, no off-by-one, no swapped arguments, no shadowed or unbound names), preservation of existing contracts (function signatures, return types, exception types and messages, output formats, default behavior), and consistency with surrounding code style. Pay attention to silent regressions in code paths the task did not explicitly mention; these are the most common cause of a patch that looks fine but breaks something else. Judge the diff on its technical merits, not by length or apparent effort.',
+        'Review the agent\'s final patch (a `diff --git ...` output, or the file contents the agent wrote and edited through its tools, as shown in the trajectory) as an experienced code reviewer would. Check syntactic validity, semantic correctness (right API, right types, right control flow, no off-by-one, no swapped arguments, no shadowed or unbound names), preservation of existing contracts (function signatures, return types, exception types and messages, output formats, default behavior), and consistency with surrounding code style. Pay attention to silent regressions in code paths the task did not explicitly mention; these are the most common cause of a patch that looks fine but breaks something else. Judge the diff on its technical merits, not by length or apparent effort.',
     },
     {
       id: 'verification',

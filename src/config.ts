@@ -75,6 +75,8 @@ export interface SelectConfig {
 export interface TrajectoryConfig {
   maxStepChars: number
   maxTotalChars: number
+  /** Earlier turns prepended when a turn is a continuation ("Continue."). */
+  continuationTurns: number
 }
 
 export interface SnapshotConfig {
@@ -175,6 +177,7 @@ export const SelectConfig: z<SelectConfig> = z.object({
 export const TrajectoryConfig: z<TrajectoryConfig> = z.object({
   maxStepChars: z.number().default(6000),
   maxTotalChars: z.number().default(300_000),
+  continuationTurns: z.number().default(1),
 })
 
 export const SnapshotConfig: z<SnapshotConfig> = z.object({

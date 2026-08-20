@@ -43,6 +43,8 @@
         trajectory:
           maxStepChars: 6000
           maxTotalChars: 300000
+          # A turn that opens with "Continue." gets this many earlier turns prepended.
+          continuationTurns: 1
         snapshot:
           # `ui_snapshot`: headless screenshots (viewports x light/dark) for analyze_image.
           enabled: true

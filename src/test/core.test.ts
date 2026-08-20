@@ -279,7 +279,7 @@ test('checkpointTrigger and verifierDebt', () => {
 test('criteria sets carry the reference wording', () => {
   const coding = resolveCriteria('coding')
   assert.deepEqual(coding.criteria.map(c => c.id), ['specification', 'code_review', 'verification'])
-  assert.ok(coding.criteria[1]!.description.startsWith('Review the agent\'s final patch (`diff --git ...`) as an experienced code reviewer would.'))
+  assert.ok(coding.criteria[1]!.description.startsWith('Review the agent\'s final patch (a `diff --git ...` output, or the file contents the agent wrote and edited through its tools, as shown in the trajectory) as an experienced code reviewer would.'))
   const terminal = resolveCriteria('terminal')
   assert.ok(terminal.criteria[1]!.description.startsWith('Find the FINAL verification command the agent ran'))
 })
@@ -315,4 +315,9 @@ test('a later turn that opens with "Continue." carries the goal objective forwar
   assert.ok(t2.task.endsWith('Continue.'))
   const t1 = buildTrajectory(events, 1, { maxStepChars: 1000, maxTotalChars: 10000 })
   assert.equal(t1.task, '<goal_round> Objective: build the app')
+  // The continuation turn carries the previous turn's trace so the verifier sees the work.
+  assert.ok(t2.trace.includes('=== Earlier turn 1 (1 steps) ==='), t2.trace)
+  assert.ok(t2.trace.includes('working') && t2.trace.includes('=== Current turn 2 ==='))
+  const t2solo = buildTrajectory(events, 2, { maxStepChars: 1000, maxTotalChars: 10000, continuationTurns: 0 })
+  assert.ok(!t2solo.trace.includes('Earlier turn'))
 })

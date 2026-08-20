@@ -9,6 +9,8 @@ export interface TrajectoryLimits {
     maxStepChars: number;
     /** Cap for the whole serialized trajectory (oldest steps are elided first). */
     maxTotalChars: number;
+    /** When a turn is a continuation (it opens with "Continue."), prepend this many earlier turns so the verifier sees the work they hold (default 1). */
+    continuationTurns?: number;
 }
 export interface Trajectory {
     /** Task text: the user's prompt(s) that opened this turn. */
@@ -34,6 +36,8 @@ export declare function isTaskSource(source: {
  * @param limits - character caps.
  */
 export declare function buildTrajectory(events: readonly SessionEvent[], turn: number, limits: TrajectoryLimits): Trajectory;
+/** A turn that opens with "Continue." (auto-continue, goal resume) rather than a fresh request. */
+export declare function isContinuation(firstTask: string): boolean;
 export interface VerifierDebt {
     /** File-editing tool calls since the last `verifier_*` call in this turn (or since the turn began). */
     edits: number;

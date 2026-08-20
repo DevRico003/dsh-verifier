@@ -43,7 +43,7 @@ That example is from a real run. The agent answered "Fair criticism, let me chec
 
 ## Prompts
 
-The verifier-facing text is the reference's. The pairwise prompt (`build_prompt`), the progress prompt (`build_progress_prompt`, one checkpoint), the two scale descriptions and the ground-truth notes are verbatim. The `coding` criteria are `specification` from `criteria/terminal_bench.md` plus `code_review` and `verification` from `criteria/swe_bench.md` ("issue" read as "task"); `terminal` is `criteria/terminal_bench.md`; `general` is this plugin's own set for prose and answers. The single-trajectory assessment prompt behind `verifier_assess` and the gate is the progress prompt reduced to the final state and extended with one criterion guideline and a request to name what is missing, because that analysis is what the agent gets back. The agent-facing texts (tool descriptions, gate and checkpoint messages) are this plugin's own.
+The verifier-facing text is the reference's. The pairwise prompt (`build_prompt`), the progress prompt (`build_progress_prompt`, one checkpoint), the two scale descriptions and the ground-truth notes are verbatim. The `coding` criteria are `specification` from `criteria/terminal_bench.md` plus `code_review` and `verification` from `criteria/swe_bench.md` ("issue" read as "task", and the patch defined as diff output or the file contents written through tools, because a harness trajectory carries edits as tool calls); `terminal` is `criteria/terminal_bench.md`; `general` is this plugin's own set for prose and answers. The single-trajectory assessment prompt behind `verifier_assess` and the gate is the progress prompt reduced to the final state and extended with one criterion guideline and a request to name what is missing, because that analysis is what the agent gets back. The agent-facing texts (tool descriptions, gate and checkpoint messages) are this plugin's own.
 
 ## What is ported, and where
 
@@ -108,6 +108,7 @@ verifier:
   trajectory:
     maxStepChars: 6000             # per tool output / message excerpt
     maxTotalChars: 300000          # whole turn; oldest steps are elided first
+    continuationTurns: 1           # a turn opening with "Continue." gets this many earlier turns prepended
   checkpoint:
     enabled: true                  # mid-turn verification, see below
     minSteps: 40
@@ -142,7 +143,7 @@ An unattended coding run is often a single turn of several hundred steps, and an
 
 **Gate debt.** When the agent has made `gateDebtEdits` file edits since its last `verifier_*` call, it receives one reminder to gate the node (no model call). The `graph-verified-coding` skill asks for one `verifier_assess` per completed multi-file node; this is what catches an agent that forgot.
 
-Turn ends still get the full gate. A goal that runs in phases (one turn per phase) gets a gate per phase on top.
+Turn ends still get the full gate. A goal that runs in phases (one turn per phase) gets a gate per phase on top. A turn that opens with "Continue." (auto-continue after an interruption, a resumed goal round) holds little of the work, so the trajectory handed to the verifier prepends the previous turn (`trajectory.continuationTurns`); otherwise a gate right after a restart would see commands but no code.
 
 ## Cost
 
