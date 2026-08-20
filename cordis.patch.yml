@@ -1,0 +1,44 @@
+# dsh bundle patch: inserts the verifier into a profile's layer stack.
+# Every value below is the composition BASE of the hot-reloadable `verifier:`
+# section in $DSH_HOME/settings.yaml; override there, no restart needed.
+- insert:
+    - id: verifier
+      name: dsh-verifier
+      config:
+        enabled: true
+        backend:
+          # Direct OpenAI-compatible call WITH logprobs (fine-grained scores).
+          # Defaults target the DGX Spark pair serving DeepSeek-V4-Flash-0731.
+          kind: openai-compatible
+          baseURL: http://YOUR_SPARK_HOST:8000/v1
+          model: deepseek-v4-flash-0731
+          apiKeyEnv: SPARK_API_KEY
+          reasoningEffort: none
+          timeoutMs: 240000
+          maxTokens: 4096
+          temperature: 1.0
+          topLogprobs: 20
+          concurrency: 4
+          retriesOnFallback: 1
+        gate:
+          enabled: true
+          threshold: 0.6
+          maxRounds: 1
+          evaluations: 1
+          criteria: general
+          criteriaMode: auto
+          skipWhenAskingUser: true
+          minSteps: 1
+          skipSubagents: true
+          feedbackMaxChars: 2500
+          timeoutMs: 300000
+        select:
+          evaluations: 2
+          pivots: 1
+          seed: 0
+          criteria: general
+        trajectory:
+          maxStepChars: 2000
+          maxTotalChars: 60000
+        tools: true
+        verbose: false
