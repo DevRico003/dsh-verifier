@@ -23,6 +23,10 @@ export interface Trajectory {
     /** Name of the last tool the agent called in this turn, if any. */
     lastToolName?: string;
 }
+/** Sources whose message text is the task itself (the human, or the goal plugin's objective). */
+export declare function isTaskSource(source: {
+    kind: string;
+}): boolean;
 /**
  * Build the trajectory of turn `turn` from the session's event log.
  * @param events - full ordered session log.
@@ -38,3 +42,17 @@ export interface VerifierDebt {
 }
 /** Count edits since the agent last asked the verifier, within one turn. */
 export declare function verifierDebt(events: readonly SessionEvent[], turn: number, editTools: readonly string[]): VerifierDebt;
+/**
+ * Whether an agent is a child (subagent, team member). Checked three ways
+ * because hosts differ: `session.meta.parentSession` (current harness),
+ * `session.parentSession` / `session.origin === 'subagent'` (session header
+ * fields), and a `subagent/descriptor` event, which only child sessions carry.
+ */
+export declare function isChildSession(session: {
+    meta?: {
+        parentSession?: unknown;
+    };
+    parentSession?: unknown;
+    origin?: unknown;
+    events: readonly SessionEvent[];
+}): boolean;

@@ -32,6 +32,11 @@ function truncate(text: string, cap: number): string {
   return `${text.slice(0, cap)}... (truncated, +${text.length - cap} chars)`
 }
 
+/** Sources whose message text is the task itself (the human, or the goal plugin's objective). */
+export function isTaskSource(source: { kind: string }): boolean {
+  return source.kind === 'user' || source.kind === 'goal'
+}
+
 function blockText(blocks: readonly { type: string; text?: string }[]): string {
   return blocks.filter(block => block.type === 'text').map(block => block.text ?? '').join('\n')
 }
@@ -71,7 +76,10 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
     switch (event.type) {
       case 'user/message': {
         const text = blockText(event.data.content)
-        if (event.data.source.kind === 'user') taskParts.push(text)
+        // The task is what the human or the goal asked for. A goal round arrives with
+        // `source.kind: 'goal'`; everything else (instructions, runtime snapshots,
+        // plugin notices) is context for the verifier, not the task.
+        if (isTaskSource(event.data.source)) taskParts.push(text)
         else if (text !== '') pluginContexts.push(truncate(text, limits.maxStepChars))
         break
       }
@@ -165,4 +173,21 @@ export function verifierDebt(events: readonly SessionEvent[], turn: number, edit
     }
   }
   return { edits, lastVerifierStep }
+}
+
+/**
+ * Whether an agent is a child (subagent, team member). Checked three ways
+ * because hosts differ: `session.meta.parentSession` (current harness),
+ * `session.parentSession` / `session.origin === 'subagent'` (session header
+ * fields), and a `subagent/descriptor` event, which only child sessions carry.
+ */
+export function isChildSession(session: { meta?: { parentSession?: unknown }; parentSession?: unknown; origin?: unknown; events: readonly SessionEvent[] }): boolean {
+  if (session.meta?.parentSession !== undefined && session.meta.parentSession !== null) return true
+  if (session.parentSession !== undefined && session.parentSession !== null) return true
+  if (session.origin === 'subagent') return true
+  for (const event of session.events) {
+    if ((event as { type: string }).type === 'subagent/descriptor') return true
+    if (event.type === 'turn/start') break
+  }
+  return false
 }

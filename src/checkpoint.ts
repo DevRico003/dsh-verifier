@@ -18,7 +18,7 @@ import type { Config } from './config.js'
 import { resolveCriteria } from './core/prompts.js'
 import { assess, progress, type AssessResult, type VerifierOptions } from './core/verifier.js'
 import type { VerifierBackend } from './core/backend.js'
-import { PLUGIN_SOURCE, renderFeedback } from './gate.js'
+import { isChildAgent, PLUGIN_SOURCE, renderFeedback } from './gate.js'
 import { buildTrajectory, verifierDebt } from './trajectory.js'
 
 interface CheckpointState {
@@ -62,10 +62,7 @@ export function installCheckpoint(ctx: Context, deps: CheckpointDeps): void {
     const config = deps.config()
     const checkpoint = config.checkpoint
     if (decision.kind === 'reject' || signal.aborted || !config.enabled || !checkpoint.enabled) return decision
-    if (config.gate.skipSubagents) {
-      const meta = (agent.session as { meta?: { parentSession?: unknown } }).meta
-      if (meta?.parentSession !== undefined && meta.parentSession !== null) return decision
-    }
+    if (config.gate.skipSubagents && isChildAgent(agent)) return decision
     const previous = states.get(agent)
     const state: CheckpointState = previous !== undefined && previous.turn === turn
       ? previous

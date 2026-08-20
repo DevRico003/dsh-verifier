@@ -8,6 +8,7 @@
  * model-visible ⟺ logged rule holds.
  */
 import type { Context } from '@deepseek-ai/cordis';
+import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { MessageSource } from '@deepseek-ai/dsh-llm';
 import type { Config } from './config.js';
 import { type AssessResult } from './core/verifier.js';
@@ -27,6 +28,8 @@ export interface GateDeps {
 }
 /** Render the steering feedback the agent receives. `round`/`maxRounds` of 0 renders without the round line (checkpoint use). */
 export declare function renderFeedback(result: AssessResult, threshold: number, round: number, maxRounds: number, maxChars: number): string;
+/** A subagent / team member: its session records the parent it was spawned or forked from. */
+export declare function isChildAgent(agent: Agent): boolean;
 /** Decide whether a trajectory is eligible for the gate; returns a reason to skip or undefined. */
 export declare function skipReason(trajectory: Trajectory, config: Config['gate']): string | undefined;
 /** Install the gate on every agent the context sees. */

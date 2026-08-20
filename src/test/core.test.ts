@@ -6,7 +6,7 @@ import { bradleyTerry, ringCycle, pivotRoundPairs, pivotTournament, mulberry32, 
 import { buildPairwisePrompt, buildAssessmentPrompt, resolveCriteria } from '../core/prompts.js'
 import { assess, compare, select, progress } from '../core/verifier.js'
 import { OpenAICompatibleBackend, UnconfiguredBackend, placeholderHost, type VerifierBackend, type CompletionRequest, type Completion } from '../core/backend.js'
-import { buildTrajectory, verifierDebt } from '../trajectory.js'
+import { buildTrajectory, verifierDebt, isChildSession } from '../trajectory.js'
 import { checkpointTrigger, renderDebtNudge } from '../checkpoint.js'
 import { renderFeedback, skipReason } from '../gate.js'
 
@@ -280,4 +280,20 @@ test('criteria sets carry the reference wording', () => {
   assert.ok(coding.criteria[1]!.description.startsWith('Review the agent\'s final patch (`diff --git ...`) as an experienced code reviewer would.'))
   const terminal = resolveCriteria('terminal')
   assert.ok(terminal.criteria[1]!.description.startsWith('Find the FINAL verification command the agent ran'))
+})
+
+test('goal rounds count as the task; child sessions are recognised by header fields or descriptor event', () => {
+  const events = [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'user/message', data: { source: { kind: 'goal', goalId: 'g1', revision: 1, round: 1 }, content: [{ type: 'text', text: '<goal_round> Objective: build it' }] } },
+    { type: 'user/message', data: { source: { kind: 'agent-instructions' }, content: [{ type: 'text', text: '<system-reminder> rules' }] } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [{ type: 'text', text: 'ok' }] } } },
+  ] as unknown as Parameters<typeof buildTrajectory>[0]
+  const trajectory = buildTrajectory(events, 1, { maxStepChars: 1000, maxTotalChars: 10000 })
+  assert.ok(trajectory.task.startsWith('<goal_round> Objective'))
+  assert.ok(trajectory.trace.includes('[Harness context injected during the turn]'))
+  assert.equal(isChildSession({ events: [] }), false)
+  assert.equal(isChildSession({ meta: { parentSession: 'p' }, events: [] }), true)
+  assert.equal(isChildSession({ origin: 'subagent', events: [] }), true)
+  assert.equal(isChildSession({ events: [{ type: 'subagent/descriptor', data: {} }] as unknown as Parameters<typeof isChildSession>[0]['events'] }), true)
 })

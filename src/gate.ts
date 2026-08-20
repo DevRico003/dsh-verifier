@@ -16,7 +16,7 @@ import type { Config } from './config.js'
 import { resolveCriteria } from './core/prompts.js'
 import { assess, type AssessResult, type VerifierOptions } from './core/verifier.js'
 import type { VerifierBackend } from './core/backend.js'
-import { buildTrajectory, type Trajectory } from './trajectory.js'
+import { buildTrajectory, isChildSession, type Trajectory } from './trajectory.js'
 
 export const PLUGIN_SOURCE: MessageSource = { kind: 'plugin', plugin: 'dsh-verifier' }
 
@@ -58,10 +58,9 @@ export function renderFeedback(result: AssessResult, threshold: number, round: n
   return lines.join('\n')
 }
 
-/** A subagent / team member: its session records the parent session it was spawned or forked from. */
-function isChildAgent(agent: Agent): boolean {
-  const meta = (agent.session as { meta?: { parentSession?: unknown } }).meta
-  return meta?.parentSession !== undefined && meta.parentSession !== null
+/** A subagent / team member: its session records the parent it was spawned or forked from. */
+export function isChildAgent(agent: Agent): boolean {
+  return isChildSession(agent.session as unknown as Parameters<typeof isChildSession>[0])
 }
 
 function looksLikeQuestionToUser(text: string): boolean {
