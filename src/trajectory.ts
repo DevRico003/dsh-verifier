@@ -49,6 +49,11 @@ function blockText(blocks: readonly { type: string; text?: string }[]): string {
  */
 export function buildTrajectory(events: readonly SessionEvent[], turn: number, limits: TrajectoryLimits): Trajectory {
   let inTurn = false
+  // The goal objective of a multi-turn goal run lives in an earlier turn; a later
+  // turn often opens with "Continue." only. Carry the latest objective forward so
+  // the verifier judges against the goal, not against "Continue.".
+  let goalObjective = ''
+  let goalInThisTurn = false
   const taskParts: string[] = []
   const pluginContexts: string[] = []
   const steps: string[] = []
@@ -72,10 +77,14 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
       else if (inTurn) break
       continue
     }
-    if (!inTurn) continue
+    if (!inTurn) {
+      if (event.type === 'user/message' && event.data.source.kind === 'goal') goalObjective = blockText(event.data.content)
+      continue
+    }
     switch (event.type) {
       case 'user/message': {
         const text = blockText(event.data.content)
+        if (event.data.source.kind === 'goal') goalInThisTurn = true
         // The task is what the human or the goal asked for. A goal round arrives with
         // `source.kind: 'goal'`; everything else (instructions, runtime snapshots,
         // plugin notices) is context for the verifier, not the task.
@@ -130,8 +139,12 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
     ? ''
     : `\n\n[Harness context injected during the turn]\n${pluginContexts.join('\n')}`
 
+  const task = !goalInThisTurn && goalObjective !== ''
+    ? [`Goal objective (set in an earlier turn):\n${goalObjective}`, ...taskParts].join('\n\n')
+    : taskParts.join('\n\n')
+
   return {
-    task: taskParts.join('\n\n'),
+    task,
     trace: trace + contextNote,
     steps: stepNumber,
     toolCalls,

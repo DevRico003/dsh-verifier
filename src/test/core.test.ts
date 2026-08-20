@@ -297,3 +297,20 @@ test('goal rounds count as the task; child sessions are recognised by header fie
   assert.equal(isChildSession({ origin: 'subagent', events: [] }), true)
   assert.equal(isChildSession({ events: [{ type: 'subagent/descriptor', data: {} }] as unknown as Parameters<typeof isChildSession>[0]['events'] }), true)
 })
+
+test('a later turn that opens with "Continue." carries the goal objective forward as its task', () => {
+  const events = [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'user/message', data: { source: { kind: 'goal', goalId: 'g1', revision: 1, round: 1 }, content: [{ type: 'text', text: '<goal_round> Objective: build the app' }] } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [{ type: 'text', text: 'working' }] } } },
+    { type: 'turn/end', data: { turn: 1 } },
+    { type: 'turn/start', data: { turn: 2 } },
+    { type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'Continue.' }] } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [{ type: 'text', text: 'done' }] } } },
+  ] as unknown as Parameters<typeof buildTrajectory>[0]
+  const t2 = buildTrajectory(events, 2, { maxStepChars: 1000, maxTotalChars: 10000 })
+  assert.ok(t2.task.startsWith('Goal objective (set in an earlier turn):\n<goal_round> Objective: build the app'))
+  assert.ok(t2.task.endsWith('Continue.'))
+  const t1 = buildTrajectory(events, 1, { maxStepChars: 1000, maxTotalChars: 10000 })
+  assert.equal(t1.task, '<goal_round> Objective: build the app')
+})
