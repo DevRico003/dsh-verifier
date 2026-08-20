@@ -25,7 +25,7 @@ export interface GateDeps {
         debug: (message: string) => void;
     };
 }
-/** Render the steering feedback the agent receives. */
+/** Render the steering feedback the agent receives. `round`/`maxRounds` of 0 renders without the round line (checkpoint use). */
 export declare function renderFeedback(result: AssessResult, threshold: number, round: number, maxRounds: number, maxChars: number): string;
 /** Decide whether a trajectory is eligible for the gate; returns a reason to skip or undefined. */
 export declare function skipReason(trajectory: Trajectory, config: Config['gate']): string | undefined;

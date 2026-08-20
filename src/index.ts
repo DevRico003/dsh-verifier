@@ -17,6 +17,7 @@ import { HarnessLlmBackend, OpenAICompatibleBackend, UnconfiguredBackend, placeh
 import { installGate, PLUGIN_SOURCE } from './gate.js'
 import { installTools } from './tools.js'
 import { installSnapshotTool } from './ui-snapshot.js'
+import { installCheckpoint } from './checkpoint.js'
 
 export { Config } from './config.js'
 export type { Config as VerifierConfig } from './config.js'
@@ -115,11 +116,21 @@ export function apply(ctx: Context, entry: Config): void {
     setSource: source => { current = source },
     onChange: () => {
       const resolved = config()
-      ctx.logger.info(`dsh-verifier: active: backend ${backend.label}, gate ${resolved.gate.enabled ? `on (threshold ${resolved.gate.threshold}, maxRounds ${resolved.gate.maxRounds})` : 'off'}, tools ${resolved.tools ? 'on' : 'off'}`)
+      ctx.logger.info(`dsh-verifier: active: backend ${backend.label}, gate ${resolved.gate.enabled ? `on (threshold ${resolved.gate.threshold}, maxRounds ${resolved.gate.maxRounds})` : 'off'}, checkpoints ${resolved.checkpoint.enabled ? `every ${resolved.checkpoint.everySteps} steps` : 'off'}, tools ${resolved.tools ? 'on' : 'off'}`)
     },
   })
 
   installGate(ctx, {
+    config,
+    backend: getBackend,
+    log: {
+      info: message => ctx.logger.info(message),
+      warn: message => ctx.logger.warn(message),
+      debug: message => ctx.logger.debug(message),
+    },
+  })
+
+  installCheckpoint(ctx, {
     config,
     backend: getBackend,
     log: {

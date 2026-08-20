@@ -54,10 +54,7 @@ export function installTools(ctx: Context, deps: ToolDeps): void {
   ctx.tools.register(defineTool({
     name: 'verifier_select',
     description:
-      'Best-of-N selection: given the task and several candidate outputs (answers, patches, plans, drafts), an independent '
-      + 'LLM verifier scores them pairwise on a fine-grained 20-point scale (expectation over logprobs) and a pivot tournament '
-      + 'picks the best. Use it when you produced or can produce multiple alternatives and want the most likely correct one. '
-      + 'Returns the winning index, per-candidate preference scores and the ranking.',
+      'Best-of-N: an independent verifier compares the candidates pairwise on a 20-point scale (expectation over logprobs), a pivot tournament ranks them. Use it when you have two or more finished alternatives (patches, designs, plans, answers). Returns bestIndex, per-candidate scores and the ranking.',
     parameters: {
       task: { type: 'string', required: true, description: 'The task / question the candidates answer, as the user stated it.' },
       candidates: { type: 'array', required: true, items: { type: 'string' }, description: 'Two or more candidate outputs, full text each.' },
@@ -92,8 +89,7 @@ export function installTools(ctx: Context, deps: ToolDeps): void {
   ctx.tools.register(defineTool({
     name: 'verifier_compare',
     description:
-      'Directed pairwise verification of two candidate outputs for a task. Returns rewards in [0,1] for A and B '
-      + '(higher = more likely correct) from an independent LLM verifier; slot bias is cancelled by swapping positions across repeats.',
+      'One directed pairwise verification of two candidates for a task. Returns rewardA and rewardB in 0..1; slot bias cancels across repeats. Use it for exactly two alternatives.',
     parameters: {
       task: { type: 'string', required: true, description: 'The task / question.' },
       a: { type: 'string', required: true, description: 'Candidate A, full text.' },
@@ -122,9 +118,7 @@ export function installTools(ctx: Context, deps: ToolDeps): void {
   ctx.tools.register(defineTool({
     name: 'verifier_assess',
     description:
-      'Strict independent assessment of ONE draft answer / result against the task: returns a reward in [0,1] per criterion '
-      + 'plus the verifier\'s concrete findings (what is wrong, missing, or unverified). Call it before finalizing an important answer '
-      + 'and fix what it flags. Pass observed evidence (tool output, test results) inside `answer` so the verifier can ground its verdict.',
+      'Gate for one result: an independent verifier scores it per criterion (0..1, expectation over logprobs) and returns findings that name what is wrong, missing or unverified. Call it after a node that changed more than one file, before a merge, and before the final answer. Put the observed evidence (command output, test results) in answer; by default the verifier also reads this turn\'s trajectory. pass is true at or above the threshold; scoredCriteria 0 means the backend failed, not a verdict.',
     parameters: {
       task: { type: 'string', required: true, description: 'The task / question as stated by the user.' },
       answer: { type: 'string', required: true, description: 'The draft answer or a summary of the work done, including observed evidence.' },

@@ -132,3 +132,37 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
     ...lastToolName !== undefined ? { lastToolName } : {},
   }
 }
+
+export interface VerifierDebt {
+  /** File-editing tool calls since the last `verifier_*` call in this turn (or since the turn began). */
+  edits: number
+  /** Step number of the last `verifier_*` call, 0 when none. */
+  lastVerifierStep: number
+}
+
+/** Count edits since the agent last asked the verifier, within one turn. */
+export function verifierDebt(events: readonly SessionEvent[], turn: number, editTools: readonly string[]): VerifierDebt {
+  let inTurn = false
+  let step = 0
+  let edits = 0
+  let lastVerifierStep = 0
+  for (const event of events) {
+    if (event.type === 'turn/start') {
+      if (event.data.turn === turn) inTurn = true
+      else if (inTurn) break
+      continue
+    }
+    if (!inTurn || event.type !== 'assistant/message') continue
+    step++
+    for (const block of event.data.message.content) {
+      if (block.type !== 'tool-call') continue
+      if (block.name.startsWith('verifier_')) {
+        edits = 0
+        lastVerifierStep = step
+      } else if (editTools.includes(block.name)) {
+        edits++
+      }
+    }
+  }
+  return { edits, lastVerifierStep }
+}

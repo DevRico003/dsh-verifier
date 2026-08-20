@@ -20,80 +20,84 @@ export interface CriteriaSet {
   criteria: Criterion[]
 }
 
-/** Generic answers, documents, explanations. */
+/** Generic answers, documents, explanations (own set; the reference ships task-specific criteria files). */
 const GENERAL: CriteriaSet = {
   groundTruthNote:
-    '**Do NOT trust the agent\'s self-assessment or confident tone.** Judge only what the answer actually contains and what the observed tool output actually shows. An answer that claims success without evidence is not evidence.',
+    '**Do NOT trust the agent\'s self-assessment or claims of success.** Judge only what the answer actually contains and what the observed tool output actually shows.',
   criteria: [
     {
       id: 'correctness',
       name: 'Correctness',
       description:
-        'Is the final answer factually and logically correct for the task as stated? Check computations, claims, code, and reasoning steps for errors. Score HIGH only when the content is right; score LOW for wrong facts, broken logic, hallucinated details, or an answer to a different question. Ignore style, length, and formatting.',
+        'Compare the agent\'s final answer against what the task actually asked for. Check computations, claims, code and reasoning steps for errors. Score HIGH only when the content is right; score LOW for wrong facts, broken logic, invented details, or an answer to a different question. Ignore style, length and formatting.',
     },
     {
       id: 'completeness',
-      name: 'Completeness & specification adherence',
+      name: 'Completeness',
       description:
-        'Does the response address EVERY explicit requirement, constraint, and format demanded by the task (language, structure, counts, file names, output shape)? Score HIGH when all requirements are met; LOW when parts are missing, silently narrowed, or constraints were violated. Ignore correctness of the content itself, only coverage and adherence.',
+        'Does the response address EVERY explicit requirement, constraint and format the task demands (language, structure, counts, file names, output shape)? Score HIGH when all requirements are met; LOW when parts are missing, silently narrowed, or constraints were violated. Ignore whether the content itself is correct; judge coverage and adherence only.',
     },
     {
       id: 'grounding',
-      name: 'Grounding & verification',
+      name: 'Grounding',
       description:
-        'Are the claims supported by what the agent actually observed (tool output, files read, commands run) rather than asserted? Score HIGH when key claims are backed by observed evidence or the task needed none; LOW when the agent narrates results it never observed, ignores contradicting output, or declares success after errors. Ignore prose quality.',
+        'Are the claims supported by what the agent actually observed (tool output, files read, commands run) rather than asserted? Score HIGH when key claims are backed by observed evidence, or the task needed none; LOW when the agent narrates results it never observed, ignores contradicting output, or declares success after errors. Ignore prose quality.',
     },
   ],
 }
 
-/** Coding / agentic tasks (ported from the swe_bench + terminal_bench criteria). */
+/**
+ * Coding tasks. Verbatim from the reference criteria files: `specification`
+ * from terminal_bench.md, `code_review` and `verification` from swe_bench.md
+ * (with "issue" read as "task", since harness tasks are not GitHub issues).
+ */
 const CODING: CriteriaSet = {
   groundTruthNote:
-    '**Do NOT trust the agent\'s self-assessment or claims that "the patch looks correct" or "all tests pass".** Agents routinely declare success on changes that fix the wrong file, address only a symptom, or are subtly broken. Focus on OBSERVED tool output as ground truth, agents often claim success when the terminal shows errors.',
+    '**Do NOT trust the agent\'s self-assessment or claims that "the patch looks correct". Agents routinely declare success on patches that fix the wrong file, address only a symptom, or are subtly broken. Focus on OBSERVED tool output as ground truth; agents often claim success when the terminal shows errors.**',
   criteria: [
     {
       id: 'specification',
-      name: 'Specification adherence',
+      name: 'Specification Adherence',
       description:
-        'Compare what the task literally demanded (exact paths, file names, formats, function names, languages, constraints, scope) with what the agent produced. "Right idea, wrong place" scores LOW. Score HIGH only when every concrete requirement was met as stated. Ignore code quality and verification here.',
+        'Re-read the task description and check the SPECIFIC requirements: exact file paths, install locations, output formats, naming, and any explicit constraints (e.g. "no X11 support", "install to /usr/local/bin/X", "output JSON to /app/out.json"). Did the agent meet these specific requirements, or did they produce a solution that solves a similar but different problem (right idea, wrong place / wrong format / missing constraint)?',
     },
     {
       id: 'code_review',
-      name: 'Code quality & root cause',
+      name: 'Code Quality',
       description:
-        'Review the final change itself: syntactic validity, correct API/types/control flow, no off-by-one or swapped arguments, preserved signatures and behaviour of untouched paths, and WHERE the change lands, fixing the root cause scores HIGH, special-casing the literal example, catching bad output downstream, or dodging the broken path scores LOW. Pay attention to silent regressions in code paths the task did not mention. Judge by substance, not by length or apparent effort.',
+        'Review the agent\'s final patch (`diff --git ...`) as an experienced code reviewer would. Check syntactic validity, semantic correctness (right API, right types, right control flow, no off-by-one, no swapped arguments, no shadowed or unbound names), preservation of existing contracts (function signatures, return types, exception types and messages, output formats, default behavior), and consistency with surrounding code style. Pay attention to silent regressions in code paths the task did not explicitly mention; these are the most common cause of a patch that looks fine but breaks something else. Judge the diff on its technical merits, not by length or apparent effort.',
     },
     {
       id: 'verification',
-      name: 'Empirical verification & error signals',
+      name: 'Empirical Verification',
       description:
-        'Did the agent actually run the relevant verification (tests, the program, the command the task names) and did the OBSERVED output match what the task calls for? Reward: reproducer built, failure observed before the fix, correct behaviour observed after, existing checks still passing. Penalize: editing again after the last successful verification (final state untested), unresolved tracebacks / non-zero exits / "command not found" in later steps, and success claims that the output contradicts. Ignore how the code looks.',
+        'Look at the commands the agent actually ran and what they printed, not what the agent claimed in its narration. Reward agents that (a) constructed a reproducer for the failure described in the task, (b) observed the failure before applying the fix, (c) observed the expected correct behavior after the fix, and (d) ran the existing tests in the affected module without breaking them. Trust observed command output over the agent\'s narration of it. Penalize agents that declared success without running anything, misread their own command output (e.g. compared a literal string to itself, ignored a traceback, claimed a test passed when it errored), or edited the code again after the last successful verification step so the final patch is untested.',
     },
   ],
 }
 
-/** Terminal / ops tasks (ported from terminal_bench). */
+/** Terminal / ops tasks. Verbatim from the reference terminal_bench.md. */
 const TERMINAL: CriteriaSet = {
   groundTruthNote:
-    '**Focus on TERMINAL OUTPUT as ground truth, not the agent\'s narration.** Agents often claim success when the terminal shows errors.',
+    '**IMPORTANT:** Focus on TERMINAL OUTPUT as ground truth. Do NOT trust the agent\'s self-assessment or claims of success. Agents often claim success when the terminal shows errors.',
   criteria: [
     {
       id: 'specification',
-      name: 'Specification',
+      name: 'Specification Adherence',
       description:
-        'Were the exact paths, file names, formats, flags and constraints the task states honoured? "Right idea, wrong place" (correct content in the wrong file, wrong directory, wrong format) scores LOW. Ignore output correctness and error handling here.',
+        'Re-read the task description and check the SPECIFIC requirements: exact file paths, install locations, output formats, naming, and any explicit constraints (e.g. "no X11 support", "install to /usr/local/bin/X", "output JSON to /app/out.json"). Did the agent meet these specific requirements, or did they produce a solution that solves a similar but different problem (right idea, wrong place / wrong format / missing constraint)?',
     },
     {
       id: 'output_match',
-      name: 'Output match',
+      name: 'Output Match',
       description:
-        'Find the FINAL verification command and compare its stdout character by character with what the task says should appear. Score HIGH when it literally matches; LOW when it differs, was never run, or the agent only asserts it would match.',
+        'Find the FINAL verification command the agent ran (the one that should prove the solution works). Compare its actual stdout/stderr output, character-by-character if needed, to what the task description says the output should look like. For example: if the task says it should print "Results: X Y Z" with integers, did the agent\'s last test actually print that? If the task asks for a JSON file, do the values look plausible and well-formed in the cat output? Reward trajectories whose terminal SHOWS the expected output literally. Ignore everything except whether the observed output matches the expected output.',
     },
     {
       id: 'error_signals',
-      name: 'Error signals',
+      name: 'Error Signal Detection',
       description:
-        'Scan the later steps for tracebacks, segfaults, "command not found", permission errors, non-zero exit codes or warnings that were never fixed. Score HIGH when the trajectory ends clean; LOW when unresolved errors remain regardless of what the agent says.',
+        'Scan the trajectory, especially the later steps, for explicit failure markers: error messages, exception tracebacks, segmentation faults, "command not found", "No such file or directory", non-zero exit codes that the agent did not subsequently fix, compilation failures, test failures, etc. A trajectory that ends with unresolved errors is almost certainly broken even if the agent claims success. Conversely, a clean trajectory whose final commands all succeed without errors is a strong positive signal. Score based ONLY on the presence/absence of unresolved error signals.',
     },
   ],
 }
@@ -112,6 +116,7 @@ export function resolveCriteria(name: string): CriteriaSet {
 export const PAIRWISE_TAG_A = 'score_A'
 export const PAIRWISE_TAG_B = 'score_B'
 export const ASSESS_TAG = 'score'
+export const PROGRESS_TAG = 'c1'
 
 /** Pairwise comparison prompt, verbatim structure of the reference `build_prompt`. */
 export function buildPairwisePrompt(
@@ -121,14 +126,14 @@ export function buildPairwisePrompt(
   criterion: Criterion,
   groundTruthNote: string,
 ): string {
-  return 'You are an expert evaluator of AI agents. You will see a task description and two agent trajectories, '
+  return 'You are an expert evaluator of AI coding agents. You will see a task description and two agent trajectories, '
     + 'then evaluate them on ONE specific criterion, stated at the end.\n\n'
     + `${groundTruthNote}\n\n`
     + `**Task:**\n${problem}\n\n`
     + `**Trajectory A:**\n${traceA}\n\n`
     + `**Trajectory B:**\n${traceB}\n\n`
     + `**Rating Scale:**\n${PAIRWISE_SCALE_DESCRIPTION}\n\n`
-    + `**Evaluation Guideline for ${criterion.name}:**\n${criterion.description}\n\n`
+    + `**Evaluation Guideline — ${criterion.name}:**\n${criterion.description}\n\n`
     + `Score each trajectory ONLY on this specific criterion ("${criterion.name}"). Ignore other aspects of the trajectory that are not relevant to it.\n\n`
     + 'Reason it through first, then END your reply with exactly these two lines and nothing after them. '
     + 'Replace each placeholder with a single letter A-T, keeping the spaces around the letter exactly as shown:\n'
@@ -168,4 +173,51 @@ export function buildAssessmentPrompt(
     + 'then END your reply with exactly this line and nothing after it. Replace the placeholder with a single letter A-T, keeping the spaces around the letter exactly as shown:\n'
     + `<${ASSESS_TAG}> LETTER_A_TO_T </${ASSESS_TAG}>\n\n`
     + 'Begin your analysis now.'
+}
+
+/**
+ * Progress prompt, verbatim from the reference `build_progress_prompt`, with
+ * one checkpoint: the state right after the last step. Used by the mid-turn
+ * checkpoint; it asks for the letter only, so it is cheap and calibrated the
+ * way the reference's progress curves are.
+ */
+export function buildProgressPrompt(problem: string, trajectory: string, nSteps: number): string {
+  return [
+    'You are a strict, skeptical evaluator of agent task attempts. Agents routinely declare victory while their environment still shows errors, edit the wrong target, or never actually run the verification the task asks for. Trust observed output — NOT the agent\'s narration.',
+    '',
+    '**Task instruction:**',
+    problem.trim(),
+    '',
+    `**Agent trajectory (${nSteps} agent steps; each step is one action by the agent, with its observed output):**`,
+    trajectory,
+    '',
+    'You will score the trajectory at 1 CHECKPOINTS. The score measures exactly ONE thing:',
+    '',
+    '    "Given everything the agent has done up to and including this step, would the agent\'s CURRENT state actually satisfy the task\'s hidden grader (i.e. produce the expected files / output / behavior the task requires)?"',
+    '',
+    'Use the 20-letter A..T scale:',
+    '  A = certainly NO — nothing useful done yet, or the agent is going down a clearly wrong path.',
+    '  B-G = leans NO — partial work exists but key pieces are missing or broken.',
+    '  H-M = uncertain — a plausible solution is taking shape, but no convincing verification yet.',
+    '  N-S = leans YES — the right artifacts appear to be in place and partial verification has worked, with minor concerns.',
+    '  T = essentially certain YES — the agent has run the relevant verification and the observed output literally matches what the task calls for, with no outstanding errors.',
+    '',
+    'CRITICAL CALIBRATION RULES:',
+    '  * Effort, exploration, step count, and confident-sounding narration are NOT progress. An agent that ran 20 commands and still has not produced the right output deserves a score near A.',
+    '  * Default to skepticism. The hidden grader is NOT visible to you. A result with no real verification step should not exceed ~K, and even a verified-looking one should rarely exceed ~R unless the verification clearly matches the task\'s stated success criterion.',
+    '  * Treat the agent\'s prose declarations ("done!", "all tests pass") as ZERO evidence. Ground your score in the actual actions and the actual output you can see.',
+    '',
+    'EXPECTED PATTERNS — successive checkpoints do NOT have to rise:',
+    '  * On a trajectory that genuinely solves the task, scores typically rise from A toward T.',
+    '  * On a trajectory committed to a WRONG approach, scores should PLATEAU once the wrong artifact is in place.',
+    '  * If the agent regresses (breaks something that worked), scores should DECREASE.',
+    '',
+    'The N checkpoints to score are:',
+    `  Checkpoint 1 = state right after Agent Step ${nSteps}`,
+    '',
+    'Score each checkpoint INDEPENDENTLY based on the agent\'s current best attempt at that point in the trajectory. Output EXACTLY N lines and nothing else, in the format:',
+    `<${PROGRESS_TAG}>LETTER</${PROGRESS_TAG}>`,
+    '',
+    'where each LETTER is a single letter from A to T.',
+  ].join('\n')
 }

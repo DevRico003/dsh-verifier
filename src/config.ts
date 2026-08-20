@@ -94,6 +94,29 @@ export interface SnapshotConfig {
   dir: string
 }
 
+export interface CheckpointConfig {
+  /** Score the running turn at step boundaries and steer when progress is low or falling. */
+  enabled: boolean
+  /** First checkpoint at this step. */
+  minSteps: number
+  /** Steps between checkpoints. */
+  everySteps: number
+  /** Repeats of the progress prompt per checkpoint (K). */
+  evaluations: number
+  /** Steer when progress is below this. */
+  threshold: number
+  /** Steer when progress fell by at least this since the previous checkpoint. */
+  drop: number
+  /** Checkpoint steers per turn. */
+  maxSteers: number
+  /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */
+  gateDebtEdits: number
+  /** Tool names that count as file edits. */
+  editTools: string[]
+  /** Deadline per checkpoint (progress plus assessment). */
+  timeoutMs: number
+}
+
 export interface Config {
   /** Master switch. */
   enabled: boolean
@@ -102,6 +125,7 @@ export interface Config {
   select: SelectConfig
   trajectory: TrajectoryConfig
   snapshot: SnapshotConfig
+  checkpoint: CheckpointConfig
   /** Register the `verifier_*` tools. */
   tools: boolean
   /** Log every verifier call at info level. */
@@ -161,6 +185,19 @@ export const SnapshotConfig: z<SnapshotConfig> = z.object({
   dir: z.string().default(''),
 })
 
+export const CheckpointConfig: z<CheckpointConfig> = z.object({
+  enabled: z.boolean().default(true),
+  minSteps: z.number().default(40),
+  everySteps: z.number().default(40),
+  evaluations: z.number().default(1),
+  threshold: z.number().default(0.3),
+  drop: z.number().default(0.25),
+  maxSteers: z.number().default(3),
+  gateDebtEdits: z.number().default(12),
+  editTools: z.array(z.string()).default(['write', 'edit', 'str_replace_editor', 'apply_patch', 'notebook_edit']),
+  timeoutMs: z.number().default(900_000),
+})
+
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(true),
   backend: BackendConfig.default({} as BackendConfig),
@@ -168,6 +205,7 @@ export const Config: z<Config> = z.object({
   select: SelectConfig.default({} as SelectConfig),
   trajectory: TrajectoryConfig.default({} as TrajectoryConfig),
   snapshot: SnapshotConfig.default({} as SnapshotConfig),
+  checkpoint: CheckpointConfig.default({} as CheckpointConfig),
   tools: z.boolean().default(true),
   verbose: z.boolean().default(false),
 })
@@ -182,5 +220,7 @@ export function validateConfig(config: Config): void {
   if (!Number.isInteger(select.pivots) || select.pivots < 1) throw new Error(`dsh-verifier: select.pivots must be an integer >= 1`)
   if (!Number.isInteger(backend.topLogprobs) || backend.topLogprobs < 1 || backend.topLogprobs > 20) throw new Error(`dsh-verifier: backend.topLogprobs must be an integer in [1, 20]`)
   if (!Number.isInteger(backend.concurrency) || backend.concurrency < 1) throw new Error(`dsh-verifier: backend.concurrency must be an integer >= 1`)
+  if (config.checkpoint.threshold < 0 || config.checkpoint.threshold > 1) throw new Error(`dsh-verifier: checkpoint.threshold must be within [0, 1]`)
+  if (!Number.isInteger(config.checkpoint.everySteps) || config.checkpoint.everySteps < 1) throw new Error(`dsh-verifier: checkpoint.everySteps must be an integer >= 1`)
   if (backend.kind === 'openai-compatible' && !/^https?:\/\//.test(backend.baseURL)) throw new Error(`dsh-verifier: backend.baseURL must be an http(s) URL, got "${backend.baseURL}"`)
 }

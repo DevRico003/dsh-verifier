@@ -87,6 +87,28 @@ export interface SnapshotConfig {
     /** Output root; empty = `$DSH_HOME/verifier/snapshots`. */
     dir: string;
 }
+export interface CheckpointConfig {
+    /** Score the running turn at step boundaries and steer when progress is low or falling. */
+    enabled: boolean;
+    /** First checkpoint at this step. */
+    minSteps: number;
+    /** Steps between checkpoints. */
+    everySteps: number;
+    /** Repeats of the progress prompt per checkpoint (K). */
+    evaluations: number;
+    /** Steer when progress is below this. */
+    threshold: number;
+    /** Steer when progress fell by at least this since the previous checkpoint. */
+    drop: number;
+    /** Checkpoint steers per turn. */
+    maxSteers: number;
+    /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */
+    gateDebtEdits: number;
+    /** Tool names that count as file edits. */
+    editTools: string[];
+    /** Deadline per checkpoint (progress plus assessment). */
+    timeoutMs: number;
+}
 export interface Config {
     /** Master switch. */
     enabled: boolean;
@@ -95,6 +117,7 @@ export interface Config {
     select: SelectConfig;
     trajectory: TrajectoryConfig;
     snapshot: SnapshotConfig;
+    checkpoint: CheckpointConfig;
     /** Register the `verifier_*` tools. */
     tools: boolean;
     /** Log every verifier call at info level. */
@@ -105,6 +128,7 @@ export declare const GateConfig: z<GateConfig>;
 export declare const SelectConfig: z<SelectConfig>;
 export declare const TrajectoryConfig: z<TrajectoryConfig>;
 export declare const SnapshotConfig: z<SnapshotConfig>;
+export declare const CheckpointConfig: z<CheckpointConfig>;
 export declare const Config: z<Config>;
 /** Fail-loud checks beyond what the schema expresses. */
 export declare function validateConfig(config: Config): void;

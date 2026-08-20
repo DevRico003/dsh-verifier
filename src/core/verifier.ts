@@ -5,7 +5,7 @@
  */
 
 import type { VerifierBackend } from './backend.js'
-import { ASSESS_TAG, buildAssessmentPrompt, buildPairwisePrompt, PAIRWISE_TAG_A, PAIRWISE_TAG_B, type Criterion } from './prompts.js'
+import { ASSESS_TAG, buildAssessmentPrompt, buildPairwisePrompt, buildProgressPrompt, PAIRWISE_TAG_A, PAIRWISE_TAG_B, PROGRESS_TAG, type Criterion } from './prompts.js'
 import { pairwiseValue, progressValue } from './scale.js'
 import { analysisBefore, extractScore, NEUTRAL_SCORE, type ScoreSource } from './scoring.js'
 import { pivotTournament } from './tournament.js'
@@ -281,4 +281,52 @@ export async function assess(problem: string, trajectory: string, options: Verif
   const valid = perCriterion.filter(entry => entry.scored)
   const score = valid.length === 0 ? NEUTRAL_SCORE : valid.reduce((sum, entry) => sum + entry.score, 0) / valid.length
   return { score, perCriterion, scoredCriteria: valid.length }
+}
+
+export interface ProgressResult {
+  /** Mean progress over the scored repeats, in [0, 1]; 0.5 when nothing could be scored. */
+  score: number
+  scoredRepeats: number
+  sources: (ScoreSource | 'error')[]
+}
+
+/**
+ * One-checkpoint progress score of a running trajectory (the reference
+ * `ProgressTracker.update`): K repeats of the progress prompt, letter only,
+ * averaged over the repeats that produced a verdict.
+ */
+export async function progress(
+  problem: string,
+  trajectory: string,
+  nSteps: number,
+  options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix'>,
+): Promise<ProgressResult> {
+  const run = limiter(options.concurrency)
+  const prompt = buildProgressPrompt(problem, trajectory, nSteps)
+  const jobs = Array.from({ length: Math.max(1, options.evaluations) }, (_, repeat) => ({ key: 'progress', run: () => run(async () => {
+    const started = Date.now()
+    try {
+      const completion = await options.backend.complete({
+        prompt,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        logprobs: options.backend.supportsLogprobs,
+        topLogprobs: options.topLogprobs,
+        ...options.signal !== undefined ? { signal: options.signal } : {},
+      })
+      const extracted = extractScore(completion.text, completion.tokens, PROGRESS_TAG, progressValue)
+      options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: extracted.source })
+      return { score: extracted.score, source: extracted.source as ScoreSource | 'error' }
+    } catch (error) {
+      options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
+      return { score: NEUTRAL_SCORE, source: 'error' as const }
+    }
+  }) }))
+  const samples = await runWarm(jobs, options.warmPrefix ?? true)
+  const scored = samples.filter(sample => isScored(sample.source))
+  return {
+    score: scored.length === 0 ? NEUTRAL_SCORE : scored.reduce((sum, sample) => sum + sample.score, 0) / scored.length,
+    scoredRepeats: scored.length,
+    sources: samples.map(sample => sample.source),
+  }
 }

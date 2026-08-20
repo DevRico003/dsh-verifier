@@ -41,6 +41,10 @@ That example is from a real run. The agent answered "Fair criticism, let me chec
 
 **The backend.** `openai-compatible` calls any chat-completions endpoint with `logprobs` and `top_logprobs` (vLLM, SGLang, the DeepSeek API). That is what makes the fine-grained score possible. `harness` routes through the harness LLM seam instead, which carries no logprobs, so scores fall back to the literal letter. Use the direct endpoint when you can.
 
+## Prompts
+
+The verifier-facing text is the reference's. The pairwise prompt (`build_prompt`), the progress prompt (`build_progress_prompt`, one checkpoint), the two scale descriptions and the ground-truth notes are verbatim. The `coding` criteria are `specification` from `criteria/terminal_bench.md` plus `code_review` and `verification` from `criteria/swe_bench.md` ("issue" read as "task"); `terminal` is `criteria/terminal_bench.md`; `general` is this plugin's own set for prose and answers. The single-trajectory assessment prompt behind `verifier_assess` and the gate is the progress prompt reduced to the final state and extended with one criterion guideline and a request to name what is missing, because that analysis is what the agent gets back. The agent-facing texts (tool descriptions, gate and checkpoint messages) are this plugin's own.
+
 ## What is ported, and where
 
 | Reference concept | File |
@@ -104,6 +108,17 @@ verifier:
   trajectory:
     maxStepChars: 6000             # per tool output / message excerpt
     maxTotalChars: 300000          # whole turn; oldest steps are elided first
+  checkpoint:
+    enabled: true                  # mid-turn verification, see below
+    minSteps: 40
+    everySteps: 40
+    evaluations: 1
+    threshold: 0.3                 # steer when progress is below this
+    drop: 0.25                     # or fell by this much since the last checkpoint
+    maxSteers: 3                   # per turn
+    gateDebtEdits: 12              # remind after this many file edits without a verifier_* call (0 = off)
+    editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]
+    timeoutMs: 900000
   snapshot:
     enabled: true                  # the ui_snapshot tool
     channels: [chrome, chromium]   # tried in order; chrome = installed Google Chrome
@@ -117,6 +132,16 @@ verifier:
 ```
 
 `gate.enabled: false` keeps the tools and drops the gate. `enabled: false` turns the plugin off.
+
+## One long turn
+
+An unattended coding run is often a single turn of several hundred steps, and an end-of-turn gate verifies that turn once, at the end. Two mechanisms make one turn verifiable while it runs, both hooked into `agent/pre-step`:
+
+**Progress checkpoints.** Every `checkpoint.everySteps` steps (from `minSteps` on) the turn so far is scored with the reference progress prompt, verbatim, one checkpoint (the current state), letter only, `evaluations` repeats. That is the reference's `ProgressTracker.update`. Scoring runs in the background; the agent keeps working. When progress is below `threshold` or fell by `drop` since the previous checkpoint, the turn is assessed with findings and the agent receives a `[dsh-verifier checkpoint]` message at its next step boundary, capped at `maxSteers` per turn. A healthy run costs one cheap call per checkpoint and no steer.
+
+**Gate debt.** When the agent has made `gateDebtEdits` file edits since its last `verifier_*` call, it receives one reminder to gate the node (no model call). The `graph-verified-coding` skill asks for one `verifier_assess` per completed multi-file node; this is what catches an agent that forgot.
+
+Turn ends still get the full gate. A goal that runs in phases (one turn per phase) gets a gate per phase on top.
 
 ## Cost
 

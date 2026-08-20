@@ -52,5 +52,19 @@
           settleMs: 500
           navigationTimeoutMs: 30000
           dir: ""
+        checkpoint:
+          # Mid-turn verification: progress score every `everySteps` steps (reference
+          # progress prompt, one letter); steer with findings when low or falling.
+          enabled: true
+          minSteps: 40
+          everySteps: 40
+          evaluations: 1
+          threshold: 0.3
+          drop: 0.25
+          maxSteers: 3
+          # Remind the agent to gate after this many file edits without a verifier_* call.
+          gateDebtEdits: 12
+          editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]
+          timeoutMs: 900000
         tools: true
         verbose: false

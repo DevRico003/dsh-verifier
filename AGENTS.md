@@ -41,7 +41,7 @@ You are adding this plugin to an existing DeepSeek Harness installation. Finish 
 
 **Settings.** Everything under `verifier:` in `$DSH_HOME/settings.yaml` hot-reloads. `gate.threshold` (0.6), `gate.maxRounds` (1), `gate.enabled`, `tools`, `backend.reasoningEffort`. The README lists every key.
 
-**Cost.** One gate pass is three verifier calls at the end of every turn. Tell the human that, and how to turn it off (`verifier: gate: enabled: false`).
+**Cost.** One gate pass is three verifier calls at the end of every turn, with thinking at effort high (minutes on a long turn); checkpoints add one cheap call every forty steps. Tell the human that, and how to turn things off (`verifier: gate: enabled: false`, `verifier: checkpoint: enabled: false`) or make them cheap (`verifier: backend: reasoningEffort: none`).
 
 **Logs.** `dsh web` prints the harness logger to its terminal; DSH Desktop writes `~/Library/Application Support/DSH Desktop/logs/dsh-<date>.log`. Headless keeps stderr empty on success.
 

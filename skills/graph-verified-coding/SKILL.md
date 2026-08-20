@@ -5,7 +5,7 @@ description: Coding with verifier gates, for the dsh-verifier plugin. Load for c
 
 # Graph-verified coding
 
-`dsh-verifier` gives you a second reader. `verifier_assess` scores one result against three criteria, `verifier_select` ranks candidates, `ui_snapshot` renders pages headless, and a gate at the end of every turn scores the whole turn and sends you back when it falls below the threshold. This skill is how to work so those calls change the outcome instead of decorating it.
+`dsh-verifier` gives you a second reader. `verifier_assess` scores one result against three criteria, `verifier_select` ranks candidates, `ui_snapshot` renders pages headless, a checkpoint scores the running turn every forty steps, and a gate at the end of every turn scores the whole turn and sends you back when it falls below the threshold. This skill is how to work so those calls change the outcome instead of decorating it.
 
 Five words carry the method. A **node** is one bounded unit of work with a **contract**: input, output, the command that proves it. An **edge** exists only where the next node reads the previous node's output. A **gate** decides whether work continues. A **join** merges parallel branches. A **cycle** is WORK, VERIFY, REPAIR with a hard stop.
 
@@ -31,7 +31,7 @@ Five words carry the method. A **node** is one bounded unit of work with a **con
 
 7. **Report with evidence.** What was verified and how (commands, test counts, snapshot paths, every verifier call with score and `scoredCriteria`), what was not verified and why, the open findings. Done when a reader can reproduce every claim.
 
-When a `[dsh-verifier]` message arrives after your turn, that is the end-of-turn gate: treat it as a failed gate (repair, re-verify, answer). If a finding is mistaken, say why in one sentence and finish.
+Three messages come from the plugin itself. `[dsh-verifier]` after your turn is the end-of-turn gate: a failed gate, so repair, re-verify, answer. `[dsh-verifier checkpoint]` during your turn is a mid-turn reading of the trajectory so far with findings: act on the findings in the current node, then continue. `[dsh-verifier] N file edits since your last verifier call` is gate debt: gate the node now (proving command, then `verifier_assess`), then continue. A finding that is mistaken gets one sentence saying why.
 
 ## Reference
 

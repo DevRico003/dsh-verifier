@@ -38,23 +38,23 @@ export interface GateDeps {
   }
 }
 
-/** Render the steering feedback the agent receives. */
+/** Render the steering feedback the agent receives. `round`/`maxRounds` of 0 renders without the round line (checkpoint use). */
 export function renderFeedback(result: AssessResult, threshold: number, round: number, maxRounds: number, maxChars: number): string {
   const sorted = [...result.perCriterion].sort((a, b) => a.score - b.score)
   const lines: string[] = []
-  lines.push(`[dsh-verifier] Automatic verification of your last turn scored ${result.score.toFixed(2)} / 1.00 (pass threshold ${threshold.toFixed(2)}). Round ${round} of ${maxRounds}.`)
-  lines.push('Per-criterion rewards: ' + sorted.map(entry => `${entry.name}=${entry.scored ? entry.score.toFixed(2) : 'unscored'}`).join(', ') + '.')
-  lines.push('')
+  lines.push(`[dsh-verifier] Verification of your turn: ${result.score.toFixed(2)} / 1.00, pass threshold ${threshold.toFixed(2)}${maxRounds > 0 ? `, round ${round} of ${maxRounds}` : ''}.`)
+  lines.push('Per criterion: ' + sorted.map(entry => `${entry.name} ${entry.scored ? entry.score.toFixed(2) : 'unscored'}`).join(', ') + '.')
   let budget = maxChars
   for (const entry of sorted) {
     if (!entry.scored || entry.analysis.trim() === '' || budget <= 0) continue
-    const excerpt = entry.analysis.length > budget ? `${entry.analysis.slice(0, budget)}…` : entry.analysis
+    const excerpt = entry.analysis.length > budget ? `${entry.analysis.slice(0, budget)} [cut]` : entry.analysis
     budget -= excerpt.length
-    lines.push(`Verifier findings, ${entry.name} (${entry.score.toFixed(2)}):`)
-    lines.push(excerpt)
     lines.push('')
+    lines.push(`${entry.name} (${entry.score.toFixed(2)}):`)
+    lines.push(excerpt)
   }
-  lines.push('Address these findings concretely before finishing: fix what is wrong or missing, run the relevant verification with tools where possible and show the observed output, then give the final answer. If a finding is mistaken, state briefly why and finish.')
+  lines.push('')
+  lines.push('Act on the findings: fix what is wrong or missing, run the verification with tools and show the observed output, then finish. A finding that is mistaken gets one sentence saying why, then finish.')
   return lines.join('\n')
 }
 

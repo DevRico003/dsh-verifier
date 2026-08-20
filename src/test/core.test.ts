@@ -4,9 +4,10 @@ import { extractScore, parseLiteralLetter, analysisBefore } from '../core/scorin
 import { pairwiseValue, progressValue, normalizeExpected, GRANULARITY } from '../core/scale.js'
 import { bradleyTerry, ringCycle, pivotRoundPairs, pivotTournament, mulberry32, Accumulator, selectPivots } from '../core/tournament.js'
 import { buildPairwisePrompt, buildAssessmentPrompt, resolveCriteria } from '../core/prompts.js'
-import { assess, compare, select } from '../core/verifier.js'
+import { assess, compare, select, progress } from '../core/verifier.js'
 import { OpenAICompatibleBackend, UnconfiguredBackend, placeholderHost, type VerifierBackend, type CompletionRequest, type Completion } from '../core/backend.js'
-import { buildTrajectory } from '../trajectory.js'
+import { buildTrajectory, verifierDebt } from '../trajectory.js'
+import { checkpointTrigger, renderDebtNudge } from '../checkpoint.js'
 import { renderFeedback, skipReason } from '../gate.js'
 
 test('scale values and normalization', () => {
@@ -157,7 +158,7 @@ test('assess retries unparseable replies once and excludes unscored criteria fro
   assert.equal(result.perCriterion.find(c => c.id === 'correctness')!.scored, false)
   assert.ok(result.score > 0.99, `unscored criterion must not drag the mean to 0.5 (got ${result.score})`)
   const feedback = renderFeedback(result, 0.6, 1, 1, 500)
-  assert.ok(feedback.includes('Correctness=unscored'))
+  assert.ok(feedback.includes('Correctness unscored'))
 })
 
 test('buildTrajectory serializes one turn and elides old steps', () => {
@@ -243,4 +244,40 @@ test('OpenAICompatibleBackend fails loud when the reply has reasoning but no ans
     fetchImpl: (async () => new Response(JSON.stringify({ choices: [{ message: { content: null, reasoning: 'x'.repeat(50) }, finish_reason: 'length' }] }), { status: 200 })) as typeof fetch,
   })
   await assert.rejects(() => backend.complete({ prompt: 'p', maxTokens: 10, temperature: 1, logprobs: true, topLogprobs: 20 }), /no answer text.*finish_reason=length/)
+})
+
+test('progress(): reference progress prompt, one checkpoint, letter read from the c1 tag', async () => {
+  const seen: string[] = []
+  const backend = fakeBackend((prompt) => { seen.push(prompt); return '<c1>R</c1>' })
+  const result = await progress('task', '--- Agent Step 1 ---\n[Output] ok', 1, { backend, evaluations: 2, concurrency: 2, maxTokens: 50, temperature: 1, topLogprobs: 20 })
+  assert.equal(result.scoredRepeats, 2)
+  assert.ok(Math.abs(result.score - 17 / 19) < 1e-9, String(result.score))
+  assert.ok(seen[0]!.includes('You will score the trajectory at 1 CHECKPOINTS'))
+  assert.ok(seen[0]!.includes('Checkpoint 1 = state right after Agent Step 1'))
+  assert.ok(seen[0]!.includes('Trust observed output — NOT the agent\'s narration.'))
+})
+
+test('checkpointTrigger and verifierDebt', () => {
+  assert.equal(checkpointTrigger(0.2, undefined, 0.3, 0.25)?.startsWith('progress 0.20 below'), true)
+  assert.equal(checkpointTrigger(0.5, 0.8, 0.3, 0.25)?.startsWith('progress fell'), true)
+  assert.equal(checkpointTrigger(0.6, 0.7, 0.3, 0.25), undefined)
+  const call = (name: string): { type: 'tool-call'; id: string; name: string; arguments: string } => ({ type: 'tool-call', id: name, name, arguments: '{}' })
+  const events = [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [call('write'), call('edit')] } } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [call('verifier_assess')] } } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [call('edit'), call('bash'), call('edit')] } } },
+  ] as unknown as Parameters<typeof verifierDebt>[0]
+  const debt = verifierDebt(events, 1, ['write', 'edit'])
+  assert.deepEqual(debt, { edits: 2, lastVerifierStep: 2 })
+  const nudge = renderDebtNudge(12)
+  assert.ok(nudge.includes('verifier_assess'))
+})
+
+test('criteria sets carry the reference wording', () => {
+  const coding = resolveCriteria('coding')
+  assert.deepEqual(coding.criteria.map(c => c.id), ['specification', 'code_review', 'verification'])
+  assert.ok(coding.criteria[1]!.description.startsWith('Review the agent\'s final patch (`diff --git ...`) as an experienced code reviewer would.'))
+  const terminal = resolveCriteria('terminal')
+  assert.ok(terminal.criteria[1]!.description.startsWith('Find the FINAL verification command the agent ran'))
 })
