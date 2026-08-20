@@ -8,6 +8,7 @@
  *   configured provider), text-only, so scores degrade to the literal letter.
  */
 
+import { Agent as UndiciAgent } from 'undici'
 import type { TokenLogprob } from './scoring.js'
 
 export interface CompletionRequest {
@@ -94,8 +95,11 @@ function composeSignal(a: AbortSignal | undefined, timeoutMs: number): AbortSign
 export class OpenAICompatibleBackend implements VerifierBackend {
   readonly label: string
   readonly supportsLogprobs = true
+  /** Node's global fetch gives up on response headers after 300 s; a thinking verifier on a long trajectory can take longer, so the dispatcher follows `timeoutMs`. */
+  private readonly dispatcher: UndiciAgent
   constructor(private readonly options: OpenAICompatibleOptions) {
     this.label = `${options.baseURL} · ${options.model}`
+    this.dispatcher = new UndiciAgent({ headersTimeout: options.timeoutMs, bodyTimeout: options.timeoutMs })
   }
 
   async complete(request: CompletionRequest): Promise<Completion> {
@@ -121,7 +125,8 @@ export class OpenAICompatibleBackend implements VerifierBackend {
       headers,
       body: JSON.stringify(body),
       signal: composeSignal(request.signal, options.timeoutMs),
-    })
+      ...options.fetchImpl === undefined ? { dispatcher: this.dispatcher } : {},
+    } as RequestInit)
     const payload = await response.json() as ChatCompletionResponse
     if (!response.ok) {
       throw new Error(`dsh-verifier: backend ${this.label} answered HTTP ${response.status}: ${payload.error?.message ?? 'unknown error'}`)

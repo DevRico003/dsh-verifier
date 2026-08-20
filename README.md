@@ -88,7 +88,7 @@ verifier:
     retriesOnFallback: 1
     warmPrefix: false              # true = first call per prompt prefix alone, then the rest (saves prefill, doubles wall-clock)
     toolReasoningEffort: low       # effort for the verifier_* tools; the gate and checkpoints use reasoningEffort
-    timeoutMs: 600000
+    timeoutMs: 600000              # per verifier call; also lifts Node's 300 s fetch header timeout
   gate:
     enabled: true
     threshold: 0.6

@@ -65,6 +65,8 @@ export declare class OpenAICompatibleBackend implements VerifierBackend {
     private readonly options;
     readonly label: string;
     readonly supportsLogprobs = true;
+    /** Node's global fetch gives up on response headers after 300 s; a thinking verifier on a long trajectory can take longer, so the dispatcher follows `timeoutMs`. */
+    private readonly dispatcher;
     constructor(options: OpenAICompatibleOptions);
     complete(request: CompletionRequest): Promise<Completion>;
 }

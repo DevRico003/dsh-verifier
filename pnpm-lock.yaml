@@ -11,6 +11,9 @@ importers:
       playwright-core:
         specifier: ^1.49.0
         version: 1.62.1
+      undici:
+        specifier: ^7.29.0
+        version: 7.29.0
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: link:../deepseek-harness/vendor/cordis
@@ -53,6 +56,10 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
+  undici@7.29.0:
+    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
+    engines: {node: '>=20.18.1'}
+
 snapshots:
 
   '@types/node@24.13.3':
@@ -62,3 +69,5 @@ snapshots:
   playwright-core@1.62.1: {}
 
   undici-types@7.18.2: {}
+
+  undici@7.29.0: {}
