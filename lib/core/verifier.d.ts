@@ -99,4 +99,4 @@ export interface ProgressResult {
  * `ProgressTracker.update`): K repeats of the progress prompt, letter only,
  * averaged over the repeats that produced a verdict.
  */
-export declare function progress(problem: string, trajectory: string, nSteps: number, options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix' | 'reasoningEffort'>): Promise<ProgressResult>;
+export declare function progress(problem: string, trajectory: string, nSteps: number, options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix' | 'reasoningEffort' | 'retriesOnFallback'>): Promise<ProgressResult>;

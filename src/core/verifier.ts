@@ -303,29 +303,35 @@ export async function progress(
   problem: string,
   trajectory: string,
   nSteps: number,
-  options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix' | 'reasoningEffort'>,
+  options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix' | 'reasoningEffort' | 'retriesOnFallback'>,
 ): Promise<ProgressResult> {
   const run = limiter(options.concurrency)
   const prompt = buildProgressPrompt(problem, trajectory, nSteps)
+  const retries = options.retriesOnFallback ?? 1
   const jobs = Array.from({ length: Math.max(1, options.evaluations) }, (_, repeat) => ({ key: 'progress', run: () => run(async () => {
-    const started = Date.now()
-    try {
-      const completion = await options.backend.complete({
-        prompt,
-        maxTokens: options.maxTokens,
-        temperature: options.temperature,
-        logprobs: options.backend.supportsLogprobs,
-        topLogprobs: options.topLogprobs,
-        ...options.reasoningEffort !== undefined ? { reasoningEffort: options.reasoningEffort } : {},
-        ...options.signal !== undefined ? { signal: options.signal } : {},
-      })
-      const extracted = extractScore(completion.text, completion.tokens, PROGRESS_TAG, progressValue)
-      options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: extracted.source })
-      return { score: extracted.score, source: extracted.source as ScoreSource | 'error' }
-    } catch (error) {
-      options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
-      return { score: NEUTRAL_SCORE, source: 'error' as const }
+    let last: { score: number; source: ScoreSource | 'error' } = { score: NEUTRAL_SCORE, source: 'error' }
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const started = Date.now()
+      try {
+        const completion = await options.backend.complete({
+          prompt,
+          maxTokens: options.maxTokens,
+          temperature: options.temperature,
+          logprobs: options.backend.supportsLogprobs,
+          topLogprobs: options.topLogprobs,
+          ...options.reasoningEffort !== undefined ? { reasoningEffort: options.reasoningEffort } : {},
+          ...options.signal !== undefined ? { signal: options.signal } : {},
+        })
+        const extracted = extractScore(completion.text, completion.tokens, PROGRESS_TAG, progressValue)
+        options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: extracted.source })
+        last = { score: extracted.score, source: extracted.source }
+      } catch (error) {
+        options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
+        last = { score: NEUTRAL_SCORE, source: 'error' }
+      }
+      if (isScored(last.source)) break
     }
+    return last
   }) }))
   const samples = await runWarm(jobs, options.warmPrefix ?? true)
   const scored = samples.filter(sample => isScored(sample.source))

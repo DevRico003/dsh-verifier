@@ -116,7 +116,7 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
   const started = Date.now()
   let measured
   try {
-    measured = await progress(trajectory.task, trajectory.trace, trajectory.steps, { ...base, evaluations: checkpoint.evaluations })
+    measured = await progress(trajectory.task, trajectory.trace, trajectory.steps, { ...base, evaluations: checkpoint.evaluations, retriesOnFallback: config.backend.retriesOnFallback })
   } catch (error) {
     deps.log.warn(`dsh-verifier: checkpoint at step ${step} of ${agent.id} failed: ${String(error)}`)
     return
