@@ -78,13 +78,13 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
       continue
     }
     if (!inTurn) {
-      if (event.type === 'user/message' && event.data.source.kind === 'goal') goalObjective = blockText(event.data.content)
+      if (event.type === 'user/message' && (event.data.source.kind as string) === 'goal') goalObjective = blockText(event.data.content)
       continue
     }
     switch (event.type) {
       case 'user/message': {
         const text = blockText(event.data.content)
-        if (event.data.source.kind === 'goal') goalInThisTurn = true
+        if ((event.data.source.kind as string) === 'goal') goalInThisTurn = true
         // The task is what the human or the goal asked for. A goal round arrives with
         // `source.kind: 'goal'`; everything else (instructions, runtime snapshots,
         // plugin notices) is context for the verifier, not the task.
