@@ -1,58 +1,55 @@
 ---
 name: graph-verified-coding
-description: Graph-engineered coding with verification gates. Use for any coding task that touches more than one file or step, offers more than one viable approach, runs unattended (goal, headless, team), or whenever the user says verify, gate, best-of, parallel, team, or workflow. Turns the task into nodes with contracts, cuts false edges, gates every merge and the final answer with evidence and the verifier tools, and repairs in bounded cycles.
+description: Coding with verifier gates, for the dsh-verifier plugin. Load for coding work that spans more than one file or step, has competing approaches, or runs unattended (goal, headless, subagents), and whenever the user says verify, gate, or best-of. Cuts the task into nodes with contracts, gates each node with evidence and verifier_assess, joins candidates with verifier_select, repairs in bounded cycles, reports with evidence.
 ---
 
 # Graph-verified coding
 
-Treat a coding task as a graph, never as a straight line. A **node** is one bounded unit of work with a **contract** (input, output, failure states). An **edge** exists only where the next node reads the previous node's output. A **gate** is a check that decides whether work continues. A **join** merges parallel branches. A **cycle** is WORK then VERIFY then REPAIR, with a hard stop.
+`dsh-verifier` gives you a second reader. `verifier_assess` scores one result against three criteria, `verifier_select` ranks candidates, `ui_snapshot` renders pages headless, and a gate at the end of every turn scores the whole turn and sends you back when it falls below the threshold. This skill is how to work so those calls change the outcome instead of decorating it.
 
-**Evidence** means observed output: a command's stdout, a test report, a rendered page, a screenshot description. Your own narration is not evidence. Every gate and every final report rests on evidence.
+Five words carry the method. A **node** is one bounded unit of work with a **contract**: input, output, the command that proves it. An **edge** exists only where the next node reads the previous node's output. A **gate** decides whether work continues. A **join** merges parallel branches. A **cycle** is WORK, VERIFY, REPAIR with a hard stop.
+
+**Evidence** is observed output: stdout, a test report, a rendered page, a verifier score. Your narration is not evidence. Every gate and the final report rest on evidence.
 
 ## Steps
 
-1. **Contract.** Restate the task as acceptance criteria that an observer could check: which files, which behaviour, which command proves it. Done when every criterion names an observable artifact. For unattended work put the contract into the goal text.
+1. **Contract.** Restate the task as acceptance criteria an observer could check: which files, which behaviour, which command proves it. Unattended work puts the contract into the goal text. Done when every criterion names an observable artifact.
 
-2. **Cut false edges.** List the nodes. For each pair ask: does the next node read the previous node's output? If not, cut the edge. Independent nodes run in parallel through `subagent` (fresh context) or the `workflow` tool (`parallel`, `pipeline`); dependent nodes run in sequence inline. Keep the graph small: two to four parallel branches on this backend, because every branch shares the same model slots. Done when every remaining edge carries real data.
+2. **Cut false edges.** List the nodes. For each pair ask whether the next node reads the previous node's output; where it does not, the edge goes. Independent nodes run in parallel through `subagent`, at most two to four at once because every branch shares the model slots; dependent nodes run inline in sequence. Each child gets its node's full contract and writes its complete result to `.graph/<node>.md` in the workspace, ending its closing message with that path and a ten-line summary. Some hosts hand you a child's `report` only when your turn ends, so read the file as soon as the child settles, before starting a node that depends on it. Done when every remaining edge carries real data and every child knows its file.
 
-3. **Work node.** Implement one node at a time against its contract. Run the proving command inside the node (tests, the program, curl) and keep the output. Done when the node's contract is met with observed output in hand and the node gate (step 4) has passed.
+3. **Work node.** Implement one node against its contract. Run the proving command inside the node (tests, the program, curl) and keep the output. Done when the contract is met with observed output in hand and the node's gate (step 4) has passed.
 
-4. **Gate.** After every node that changed more than one file, before every merge, and before the final answer, verify:
-   - Deterministic first: tests, type checks, lint, the command the task names. Fix the root cause, never the symptom.
-   - For anything a browser renders: `ui_snapshot(url)` (headless, every viewport in light and dark in one call, console and page errors included), then `analyze_image` with `backend: detailed` on each returned path for the visual verdict. Fix console and page errors before judging the look. For clicking, typing and reading the DOM use the headless `browser_open`, `browser_interact`, `browser_read`, `browser_console`. Both leave the user's screen alone. `computer_observe` and `computer_action` drive the user's real desktop; they are for tasks about the user's desktop, never for checking your own web work.
-   - Then, not optionally: `verifier_assess` with `criteria: coding`, the node's contract as `task` and the work plus its observed evidence as `answer`. Read the findings, repair what is right, rebut briefly what is wrong. A result with `scoredCriteria: 0` is not a gate; fix the backend or report it.
-   Done when every acceptance criterion has a passing observation and the `verifier_assess` score is at or above the threshold.
+4. **Gate.** After every node that changed more than one file, before every merge, and before the final answer:
+   - Deterministic first: tests, type check, lint, the command the task names. Fix the root cause.
+   - Rendered output: `ui_snapshot(url)` gives PNGs for every viewport in light and dark plus console and page errors; clear the errors, then `analyze_image` with `backend: detailed` on each path for the visual verdict. Clicking, typing and DOM reads go through the headless `browser_open`, `browser_interact`, `browser_read`, `browser_console`.
+   - Then `verifier_assess` with `criteria: coding`, the node's contract as `task`, the work plus its observed evidence as `answer`. It reads your current turn's trajectory by default, so the evidence must be in tool output, not only in your summary. Read `findings` per criterion; repair what is right, rebut in one sentence what is wrong.
+   Done when every acceptance criterion has a passing observation and `pass` is true with `scoredCriteria` above zero. A result with `scoredCriteria: 0` is a backend failure, never a verdict: report it and continue on the deterministic checks.
 
-5. **Join.** When branches produced competing candidates (patches, designs, plans), pick with `verifier_select` (pairwise pivot tournament) instead of intuition; for two candidates `verifier_compare`. Merge the winner, then gate the merged result (step 4). Done when one candidate is chosen with its score and the merge passed its gate.
+5. **Join.** Competing candidates (patches, designs, plans) are ranked with `verifier_select`; two candidates with `verifier_compare`. Merge the winner, then gate the merged result (step 4). Done when one candidate is chosen with its score and the merge passed its gate.
 
-6. **Cycle with a stop.** On a failed gate: repair, then re-run the gate. Bound the cycle before you start (normally two rounds, three for risky changes). On the last failed round stop and report the open findings instead of declaring success. Done when the gate passes or the round budget is spent and the report names what is still open.
+6. **Cycle with a stop.** On a failed gate: repair, re-run the gate. Bound the cycle before you start, two rounds as the norm, three for risky changes. On the last failed round stop and report the open findings. Done when the gate passes or the round budget is spent and the report names what is still open.
 
-7. **Report with evidence.** State what was verified and how (commands, test counts, screenshots, verifier scores), what was not verified and why, and the open findings. Done when a reader can reproduce every claim from the report.
+7. **Report with evidence.** What was verified and how (commands, test counts, snapshot paths, every verifier call with score and `scoredCriteria`), what was not verified and why, the open findings. Done when a reader can reproduce every claim.
 
-If a `[dsh-verifier]` message arrives after your turn, treat it as a failed gate: repair, re-verify, answer. If a finding is mistaken, say why in one sentence and finish.
+When a `[dsh-verifier]` message arrives after your turn, that is the end-of-turn gate: treat it as a failed gate (repair, re-verify, answer). If a finding is mistaken, say why in one sentence and finish.
 
 ## Reference
 
-**Tools and cost on this setup** (one model, six parallel slots; the verifier thinks at effort `high`, so a gate over a long turn takes minutes, which is the price of a verdict worth acting on):
+**The tools.**
 
-| Tool | Use | Cost |
+| Tool | Call | Returns |
 | --- | --- | --- |
-| `verifier_assess(task, answer)` | gate for one result, returns score and findings | 3 calls (one per criterion) |
-| `verifier_compare(task, a, b)` | directed pairwise reward | 3 × evaluations calls |
-| `verifier_select(task, candidates[])` | best-of-N join, N + k(N-k) pairs | pairs × 3 × evaluations calls (3 candidates ≈ 30) |
-| `subagent` / `subagent_fork` | parallel or context-inheriting node | one model stream each |
-| `workflow` | scripted graph: `agent()`, `parallel()`, `pipeline()` | one stream per agent |
-| `ralph` | repeated fresh-agent rounds on one objective | one stream per round |
-| `ui_snapshot(url)` | headless PNGs per viewport and colour scheme plus console/page errors, for `analyze_image` | local, about 2 s per shot |
-| `browser_open`, `browser_interact`, `browser_read`, `browser_console` | headless interaction and DOM reads | local |
-| `analyze_image(path, backend: detailed)` | visual verdict on a screenshot | one vision call |
+| `verifier_assess` | `task`, `answer`, `criteria` (coding, terminal, general), `evaluations`, `includeTrajectory` (default true) | `score` 0..1, `pass`, `threshold`, `scoredCriteria`, per-criterion `score`, `scored`, `source`, `findings`, `backend` |
+| `verifier_compare` | `task`, `a`, `b`, `criteria` | `rewardA`, `rewardB` in 0..1 |
+| `verifier_select` | `task`, `candidates[]`, `criteria` | `bestIndex`, `scores`, `ranking`, `comparisons` |
+| `ui_snapshot` | `url`, `viewports` (default 1440x900 and 390x844), `colorSchemes` (default both), `fullPage`, `waitForSelector`, `settleMs`, `label` | `shots[]` with `path`, `consoleErrors`, `pageErrors`, `failedRequests` |
 
-**Criteria sets** for the verifier tools: `coding` (specification, code quality and root cause, empirical verification) for code; `terminal` (specification, output match, error signals) for ops tasks; `general` for prose and answers.
+**Criteria sets.** `coding`: specification adherence, code quality and root cause, empirical verification. `terminal`: specification, literal output match, unresolved error signals. `general`: correctness, completeness, grounding.
 
-**Design rounds.** A UI improvement round is: `ui_snapshot` before, `analyze_image` on each shot with a concrete question (contrast, spacing, hierarchy, clipped content, consistency with the design guidelines in use), change the code, `ui_snapshot` after with a `label` such as `round-2-after`, `analyze_image` again, keep both paths for the report. Two rounds minimum when the task names design quality; stop when a round yields no finding.
+**Reading a verdict.** `score` is the mean over criteria of an expectation over the verifier's letter distribution, so 0.72 means the verifier leans yes with doubt, 0.95 means it saw the proof. `source: logprobs` is the full reading, `text` a single sampled letter, and `scored: false` means that criterion produced no verdict. `findings` is the verifier's analysis and names what is missing, wrong or unverified; it is written to be acted on.
 
-**Gate placement.** One `verifier_assess` per completed multi-file node, one per merge, one before the final answer. Skip only single-file edits. For N nodes expect at least N + 1 calls; a two-hour build with two calls means the node gates were skipped. The verifier is a second opinion, not a substitute for running the code, so the deterministic checks always come first.
+**Cost.** The verifier thinks (effort high). One `verifier_assess` is three calls, about one to two minutes on a long turn because the trajectory is prefilled once and the other two calls hit the cache. `verifier_select` over three candidates is about thirty calls. Place gates where they pay: one per completed multi-file node, one per merge, one before the final answer. For N such nodes expect at least N + 1 calls; a long build with two calls means the node gates were skipped.
 
-**Subagent contracts.** Give each child the full contract of its node and the evidence it must return (which command output, which file paths). Some hosts deliver a child's `report` only when the parent's turn ends, so never plan on the relay. Every child writes its full result to `.graph/<node>.md` in the workspace and ends its closing message with that path plus a ten-line summary; the parent reads the file as soon as the child's settle notice arrives, before starting any node that depends on it. A child that returns narration without evidence failed its node; repair or rerun it.
+**Design rounds.** `ui_snapshot` before, `analyze_image` on each shot with a concrete question (contrast, spacing, hierarchy, clipped content, consistency with the design guidelines in use), change the code, `ui_snapshot` after with a `label` such as `round-2-after`, `analyze_image` again, keep both paths for the report. Two rounds minimum when the task names design quality; stop when a round yields no finding.
 
 **Hand back to the user** when a criterion cannot be decided without them (missing access, conflicting requirements, destructive actions). A turn that ends in a question is not gated.
