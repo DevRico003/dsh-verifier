@@ -16,6 +16,7 @@ import { Config, validateConfig } from './config.js'
 import { HarnessLlmBackend, OpenAICompatibleBackend, UnconfiguredBackend, placeholderHost, type VerifierBackend } from './core/backend.js'
 import { installGate, PLUGIN_SOURCE } from './gate.js'
 import { installTools } from './tools.js'
+import { installSnapshotTool } from './ui-snapshot.js'
 
 export { Config } from './config.js'
 export type { Config as VerifierConfig } from './config.js'
@@ -129,4 +130,5 @@ export function apply(ctx: Context, entry: Config): void {
   })
 
   if (entry.tools) installTools(ctx, { config, backend: getBackend })
+  if (entry.tools && entry.snapshot.enabled) installSnapshotTool(ctx, config)
 }

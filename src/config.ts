@@ -75,6 +75,23 @@ export interface TrajectoryConfig {
   maxTotalChars: number
 }
 
+export interface SnapshotConfig {
+  /** Register the `ui_snapshot` tool (headless Playwright screenshots for visual evidence). */
+  enabled: boolean
+  /** Browser channels tried in order: `chrome` = installed Google Chrome, `chromium` = Playwright's own build. */
+  channels: string[]
+  /** Headless launch; keep true so nothing opens on the user's screen. */
+  headless: boolean
+  /** Default viewports as WIDTHxHEIGHT. */
+  viewports: string[]
+  /** Extra wait after load before the shot. */
+  settleMs: number
+  /** Navigation timeout per page. */
+  navigationTimeoutMs: number
+  /** Output root; empty = `$DSH_HOME/verifier/snapshots`. */
+  dir: string
+}
+
 export interface Config {
   /** Master switch. */
   enabled: boolean
@@ -82,6 +99,7 @@ export interface Config {
   gate: GateConfig
   select: SelectConfig
   trajectory: TrajectoryConfig
+  snapshot: SnapshotConfig
   /** Register the `verifier_*` tools. */
   tools: boolean
   /** Log every verifier call at info level. */
@@ -130,12 +148,23 @@ export const TrajectoryConfig: z<TrajectoryConfig> = z.object({
   maxTotalChars: z.number().default(60_000),
 })
 
+export const SnapshotConfig: z<SnapshotConfig> = z.object({
+  enabled: z.boolean().default(true),
+  channels: z.array(z.string()).default(['chrome', 'chromium']),
+  headless: z.boolean().default(true),
+  viewports: z.array(z.string()).default(['1440x900', '390x844']),
+  settleMs: z.number().default(500),
+  navigationTimeoutMs: z.number().default(30_000),
+  dir: z.string().default(''),
+})
+
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(true),
   backend: BackendConfig.default({} as BackendConfig),
   gate: GateConfig.default({} as GateConfig),
   select: SelectConfig.default({} as SelectConfig),
   trajectory: TrajectoryConfig.default({} as TrajectoryConfig),
+  snapshot: SnapshotConfig.default({} as SnapshotConfig),
   tools: z.boolean().default(true),
   verbose: z.boolean().default(false),
 })

@@ -40,5 +40,14 @@
         trajectory:
           maxStepChars: 2000
           maxTotalChars: 60000
+        snapshot:
+          # `ui_snapshot`: headless screenshots (viewports x light/dark) for analyze_image.
+          enabled: true
+          channels: [chrome, chromium]
+          headless: true
+          viewports: ["1440x900", "390x844"]
+          settleMs: 500
+          navigationTimeoutMs: 30000
+          dir: ""
         tools: true
         verbose: false

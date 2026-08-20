@@ -37,6 +37,7 @@ That example is from a real run. The agent answered "Fair criticism, let me chec
 | `verifier_assess(task, answer)` | Scores one result per criterion and returns the findings. By default it also hands the verifier the observed trajectory of the current turn, so the verdict rests on tool output rather than on the agent's summary. |
 | `verifier_select(task, candidates[])` | Best-of-N. Pairwise comparisons with slot swapping, then a probabilistic pivot tournament picks the winner in N + k(N-k) comparisons instead of N². |
 | `verifier_compare(task, a, b)` | One directed pairwise reward. |
+| `ui_snapshot(url)` | Evidence for visual work: headless screenshots of one URL across viewports (default 1440x900 and 390x844) in light and dark mode, written as PNGs under `$DSH_HOME/verifier/snapshots/<label>/`, plus the console errors, page errors and failed requests seen while loading. Runs Playwright against the installed Google Chrome (then Playwright's Chromium); nothing opens on screen. Pair it with a vision tool such as `analyze_image` for the verdict. |
 
 **The backend.** `openai-compatible` calls any chat-completions endpoint with `logprobs` and `top_logprobs` (vLLM, SGLang, the DeepSeek API). That is what makes the fine-grained score possible. `harness` routes through the harness LLM seam instead, which carries no logprobs, so scores fall back to the literal letter. Use the direct endpoint when you can.
 
@@ -101,6 +102,14 @@ verifier:
   trajectory:
     maxStepChars: 2000
     maxTotalChars: 60000
+  snapshot:
+    enabled: true                  # the ui_snapshot tool
+    channels: [chrome, chromium]   # tried in order; chrome = installed Google Chrome
+    headless: true
+    viewports: ["1440x900", "390x844"]
+    settleMs: 500
+    navigationTimeoutMs: 30000
+    dir: ""                        # empty = $DSH_HOME/verifier/snapshots
   tools: true
   verbose: false
 ```

@@ -32,7 +32,8 @@ You are adding this plugin to an existing DeepSeek Harness installation. Finish 
    - `dsh --profile headless "Answer in one word: ok"` finishes; with `verifier: verbose: true` in settings the host log shows `dsh-verifier: ... PASSED` or `BELOW threshold`.
    - `dsh --profile headless "Use verifier_select with task='What is 12*12?' and candidates ['144','124'] and return bestIndex."` answers 0.
    - `dsh --profile headless "Load the skill graph-verified-coding and reply only with the number of steps."` answers 7.
-   Done when all three hold.
+   - `dsh --profile headless "Call ui_snapshot with url https://example.com/ and reply only with the number of shots and the browser field."` answers 4 and a `headless=true` browser (needs Google Chrome or a Playwright Chromium on the machine).
+   Done when all four hold.
 
 5. **Report.** The profiles touched, the `verifier:` section written, the three smoke-test outputs verbatim. Done when the human can reproduce every claim.
 

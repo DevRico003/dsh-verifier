@@ -21,6 +21,9 @@
     "test": "npm run build && node --test lib/test/*.test.js",
     "check": "npm run typecheck && npm run test"
   },
+  "dependencies": {
+    "playwright-core": "^1.49.0"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
     "@deepseek-ai/schemastery": "*",

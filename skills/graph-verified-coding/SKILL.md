@@ -19,7 +19,7 @@ Treat a coding task as a graph, never as a straight line. A **node** is one boun
 
 4. **Gate.** Before a merge and before the final answer, verify:
    - Deterministic first: tests, type checks, lint, the command the task names. Fix the root cause, never the symptom.
-   - For anything a browser renders: `frontend-verify` loop (`browser_open`, `browser_console`, `browser_read`, `browser_screenshot`), then `analyze_image` with `backend: detailed` on the screenshot for the visual verdict.
+   - For anything a browser renders: `ui_snapshot(url)` (headless, every viewport in light and dark in one call, console and page errors included), then `analyze_image` with `backend: detailed` on each returned path for the visual verdict. Fix console and page errors before judging the look. For clicking, typing and reading the DOM use the headless `browser_open`, `browser_interact`, `browser_read`, `browser_console`. Both leave the user's screen alone. `computer_observe` and `computer_action` drive the user's real desktop; they are for tasks about the user's desktop, never for checking your own web work.
    - When evidence is ambiguous or the task is judgement-heavy: `verifier_assess` with the task text and the work plus its evidence; read the findings, repair what is right, rebut briefly what is wrong.
    Done when every acceptance criterion has a passing observation.
 
@@ -43,9 +43,13 @@ If a `[dsh-verifier]` message arrives after your turn, treat it as a failed gate
 | `subagent` / `subagent_fork` | parallel or context-inheriting node | one model stream each |
 | `workflow` | scripted graph: `agent()`, `parallel()`, `pipeline()` | one stream per agent |
 | `ralph` | repeated fresh-agent rounds on one objective | one stream per round |
-| `browser_*`, `mcp__playwright__browser_*`, `analyze_image` | see and interact with rendered output | local |
+| `ui_snapshot(url)` | headless PNGs per viewport and colour scheme plus console/page errors, for `analyze_image` | local, about 2 s per shot |
+| `browser_open`, `browser_interact`, `browser_read`, `browser_console` | headless interaction and DOM reads | local |
+| `analyze_image(path, backend: detailed)` | visual verdict on a screenshot | one vision call |
 
 **Criteria sets** for the verifier tools: `coding` (specification, code quality and root cause, empirical verification) for code; `terminal` (specification, output match, error signals) for ops tasks; `general` for prose and answers.
+
+**Design rounds.** A UI improvement round is: `ui_snapshot` before, `analyze_image` on each shot with a concrete question (contrast, spacing, hierarchy, clipped content, consistency with the design guidelines in use), change the code, `ui_snapshot` after with a `label` such as `round-2-after`, `analyze_image` again, keep both paths for the report. Two rounds minimum when the task names design quality; stop when a round yields no finding.
 
 **Gate placement.** Gate before merges and before the final answer. Skip gates on trivial single-edit steps; the cost is real and the verifier is a second opinion, not a substitute for running the code.
 

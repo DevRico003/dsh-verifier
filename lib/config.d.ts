@@ -69,6 +69,22 @@ export interface TrajectoryConfig {
     maxStepChars: number;
     maxTotalChars: number;
 }
+export interface SnapshotConfig {
+    /** Register the `ui_snapshot` tool (headless Playwright screenshots for visual evidence). */
+    enabled: boolean;
+    /** Browser channels tried in order: `chrome` = installed Google Chrome, `chromium` = Playwright's own build. */
+    channels: string[];
+    /** Headless launch; keep true so nothing opens on the user's screen. */
+    headless: boolean;
+    /** Default viewports as WIDTHxHEIGHT. */
+    viewports: string[];
+    /** Extra wait after load before the shot. */
+    settleMs: number;
+    /** Navigation timeout per page. */
+    navigationTimeoutMs: number;
+    /** Output root; empty = `$DSH_HOME/verifier/snapshots`. */
+    dir: string;
+}
 export interface Config {
     /** Master switch. */
     enabled: boolean;
@@ -76,6 +92,7 @@ export interface Config {
     gate: GateConfig;
     select: SelectConfig;
     trajectory: TrajectoryConfig;
+    snapshot: SnapshotConfig;
     /** Register the `verifier_*` tools. */
     tools: boolean;
     /** Log every verifier call at info level. */
@@ -85,6 +102,7 @@ export declare const BackendConfig: z<BackendConfig>;
 export declare const GateConfig: z<GateConfig>;
 export declare const SelectConfig: z<SelectConfig>;
 export declare const TrajectoryConfig: z<TrajectoryConfig>;
+export declare const SnapshotConfig: z<SnapshotConfig>;
 export declare const Config: z<Config>;
 /** Fail-loud checks beyond what the schema expresses. */
 export declare function validateConfig(config: Config): void;
