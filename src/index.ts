@@ -68,11 +68,9 @@ function buildBackend(ctx: Context, config: Config): VerifierBackend {
     })
   }
   const placeholder = placeholderHost(backend.baseURL)
-  if (placeholder !== undefined) {
-    const unconfigured = new UnconfiguredBackend(backend.baseURL, placeholder)
-    ctx.logger.warn(unconfigured.reason)
-    return unconfigured
-  }
+  // No warning here: at apply time only the composition base is known and the
+  // settings overlay (where the real host lives) has not been applied yet.
+  if (placeholder !== undefined) return new UnconfiguredBackend(backend.baseURL, placeholder)
   const apiKey = resolveApiKey(ctx, backend.apiKeyEnv)
   return new OpenAICompatibleBackend({
     baseURL: backend.baseURL,
@@ -116,6 +114,7 @@ export function apply(ctx: Context, entry: Config): void {
     setSource: source => { current = source },
     onChange: () => {
       const resolved = config()
+      if (backend instanceof UnconfiguredBackend) ctx.logger.warn(backend.reason)
       ctx.logger.info(`dsh-verifier: active: backend ${backend.label}, gate ${resolved.gate.enabled ? `on (threshold ${resolved.gate.threshold}, maxRounds ${resolved.gate.maxRounds})` : 'off'}, checkpoints ${resolved.checkpoint.enabled ? `every ${resolved.checkpoint.everySteps} steps` : 'off'}, tools ${resolved.tools ? 'on' : 'off'}`)
     },
   })
