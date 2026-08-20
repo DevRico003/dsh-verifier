@@ -5,7 +5,7 @@ import { pairwiseValue, progressValue, normalizeExpected, GRANULARITY } from '..
 import { bradleyTerry, ringCycle, pivotRoundPairs, pivotTournament, mulberry32, Accumulator, selectPivots } from '../core/tournament.js'
 import { buildPairwisePrompt, buildAssessmentPrompt, resolveCriteria } from '../core/prompts.js'
 import { assess, compare, select } from '../core/verifier.js'
-import type { VerifierBackend, CompletionRequest, Completion } from '../core/backend.js'
+import { UnconfiguredBackend, placeholderHost, type VerifierBackend, type CompletionRequest, type Completion } from '../core/backend.js'
 import { buildTrajectory } from '../trajectory.js'
 import { renderFeedback, skipReason } from '../gate.js'
 
@@ -185,4 +185,16 @@ test('buildTrajectory serializes one turn and elides old steps', () => {
   assert.equal(skipReason({ ...trajectory, finalText: 'Which file?' }, { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'general', criteriaMode: 'auto', skipWhenAskingUser: true, minSteps: 1, skipSubagents: true, handoffTools: ['ask_user'], feedbackMaxChars: 100, timeoutMs: 1000 }), 'final message asks the user a question')
   const feedback = renderFeedback({ score: 0.3, scoredCriteria: 1, perCriterion: [{ id: 'c', name: 'Correctness', score: 0.3, analysis: 'wrong sum', source: 'text', scored: true }] }, 0.6, 1, 1, 100)
   assert.ok(feedback.includes('wrong sum') && feedback.includes('0.30'))
+})
+
+test('placeholder hosts are detected and the stand-in backend explains the fix in the findings', async () => {
+  assert.equal(placeholderHost('http://YOUR_SPARK_HOST:8000/v1'), 'YOUR_SPARK_HOST')
+  assert.equal(placeholderHost('http://192.168.178.60:8000/v1'), undefined)
+  assert.equal(placeholderHost('https://api.deepseek.com/v1'), undefined)
+  const backend = new UnconfiguredBackend('http://YOUR_SPARK_HOST:8000/v1', 'YOUR_SPARK_HOST')
+  const set = resolveCriteria('general')
+  const options = { backend, criteria: set.criteria, groundTruthNote: set.groundTruthNote, evaluations: 1, concurrency: 3, maxTokens: 100, temperature: 1, topLogprobs: 20, onError: 'tie' as const, retriesOnFallback: 0 }
+  const result = await assess('t', 'trace', options)
+  assert.equal(result.scoredCriteria, 0)
+  assert.ok(result.perCriterion[0]!.analysis.includes('set verifier.backend.baseURL'), result.perCriterion[0]!.analysis)
 })

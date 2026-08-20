@@ -66,7 +66,7 @@ dsh plugin --profile desktop add /path/to/dsh-verifier    # DSH Desktop
 
 ## Configure
 
-Defaults live in `cordis.patch.yml`. They point at a DeepSeek-V4-Flash-0731 served by vLLM on a DGX Spark pair, so you will want to change at least `backend.baseURL` and `backend.model`. Everything is a hot-reloadable `verifier:` section in `$DSH_HOME/settings.yaml`; no restart.
+Defaults live in `cordis.patch.yml`. The shipped `backend.baseURL` is the placeholder `http://YOUR_SPARK_HOST:8000/v1`; until you set a real endpoint the plugin loads but every verifier call fails with a message naming this setting (the gate then closes turns unverified and logs a warning, `verifier_assess` returns `scoredCriteria: 0` with the message in `findings`). Set at least `backend.baseURL` and `backend.model`. Everything is a hot-reloadable `verifier:` section in `$DSH_HOME/settings.yaml`; no restart.
 
 ```yaml
 verifier:

@@ -235,7 +235,7 @@ export async function assess(problem: string, trajectory: string, options: Verif
         } catch (error) {
           options.onCall?.({ kind: 'assess', criterion: criterion.id, repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
           if (options.onError === 'raise') throw error
-          last = { score: NEUTRAL_SCORE, analysis: '', source: 'error' }
+          last = { score: NEUTRAL_SCORE, analysis: `verifier call failed: ${String(error)}`, source: 'error' }
         }
         if (isScored(last.source)) break
       }

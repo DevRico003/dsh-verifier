@@ -13,7 +13,7 @@ import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Config, validateConfig } from './config.js'
-import { HarnessLlmBackend, OpenAICompatibleBackend, type VerifierBackend } from './core/backend.js'
+import { HarnessLlmBackend, OpenAICompatibleBackend, UnconfiguredBackend, placeholderHost, type VerifierBackend } from './core/backend.js'
 import { installGate, PLUGIN_SOURCE } from './gate.js'
 import { installTools } from './tools.js'
 
@@ -64,6 +64,12 @@ function buildBackend(ctx: Context, config: Config): VerifierBackend {
       createUserMessage: text => createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE }),
       collectText,
     })
+  }
+  const placeholder = placeholderHost(backend.baseURL)
+  if (placeholder !== undefined) {
+    const unconfigured = new UnconfiguredBackend(backend.baseURL, placeholder)
+    ctx.logger.warn(unconfigured.reason)
+    return unconfigured
   }
   const apiKey = resolveApiKey(ctx, backend.apiKeyEnv)
   return new OpenAICompatibleBackend({

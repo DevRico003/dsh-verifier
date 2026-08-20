@@ -34,6 +34,20 @@ export interface VerifierBackend {
     readonly supportsLogprobs: boolean;
     complete(request: CompletionRequest): Promise<Completion>;
 }
+/** Hosts like `YOUR_SPARK_HOST` that a checkout ships instead of a real endpoint. */
+export declare function placeholderHost(baseURL: string): string | undefined;
+/**
+ * Backend standing in while `backend.baseURL` still holds a placeholder: every
+ * call fails with the fix spelled out, so the gate warns and the tools tell the
+ * agent what to report instead of a bare DNS error.
+ */
+export declare class UnconfiguredBackend implements VerifierBackend {
+    readonly label: string;
+    readonly supportsLogprobs = false;
+    readonly reason: string;
+    constructor(baseURL: string, host: string);
+    complete(): Promise<Completion>;
+}
 export interface OpenAICompatibleOptions {
     baseURL: string;
     model: string;

@@ -35,6 +35,33 @@ export interface VerifierBackend {
   complete(request: CompletionRequest): Promise<Completion>
 }
 
+/** Hosts like `YOUR_SPARK_HOST` that a checkout ships instead of a real endpoint. */
+export function placeholderHost(baseURL: string): string | undefined {
+  // Raw match: `new URL()` lowercases hostnames and would hide the placeholder's spelling.
+  const host = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?\[?([^\]/:?#]+)/i.exec(baseURL)?.[1]
+  if (host === undefined) return undefined
+  return /^YOUR_|_HOST$|^<.*>$|^example\.(com|org|net)$/i.test(host) ? host : undefined
+}
+
+/**
+ * Backend standing in while `backend.baseURL` still holds a placeholder: every
+ * call fails with the fix spelled out, so the gate warns and the tools tell the
+ * agent what to report instead of a bare DNS error.
+ */
+export class UnconfiguredBackend implements VerifierBackend {
+  readonly label: string
+  readonly supportsLogprobs = false
+  readonly reason: string
+  constructor(baseURL: string, host: string) {
+    this.label = `${baseURL} (unconfigured)`
+    this.reason = `dsh-verifier: backend.baseURL still holds the placeholder "${host}"; set verifier.backend.baseURL (and model) in $DSH_HOME/settings.yaml to your OpenAI-compatible endpoint`
+  }
+
+  complete(): Promise<Completion> {
+    return Promise.reject(new Error(this.reason))
+  }
+}
+
 export interface OpenAICompatibleOptions {
   baseURL: string
   model: string
