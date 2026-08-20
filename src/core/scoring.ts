@@ -36,38 +36,50 @@ function asLetter(candidate: string): string | undefined {
 }
 
 /**
- * Locate the token that carries the letter following the LAST `<tag>` in
- * `text`, tolerating tokenizers that fuse `>` with the letter or emit
+ * Locate the token that carries the letter following the LAST `<tag>` in the
+ * generated token stream. Token-driven, not text-driven: with thinking on,
+ * vLLM puts the reasoning tokens into `logprobs.content` as well, so token
+ * offsets do not line up with `message.content`. Tolerates tokenizers that
+ * fuse `>` with the letter (`>A`), split the tag (`<`, `score`, `>`), or emit
  * whitespace-only tokens between the tag and the letter.
  *
- * @returns the token index plus the non-letter prefix inside that token that
- * belongs to the tag/whitespace (so alternatives can be stripped the same way).
+ * @returns the token index plus whether the token still starts with the
+ * tag's closing `>` (so alternatives are stripped the same way).
  */
-function locateLetterToken(text: string, tokens: TokenLogprob[], tag: string): { index: number; prefix: string } | undefined {
+function locateLetterToken(tokens: TokenLogprob[], tag: string): { index: number; stripClose: boolean } | undefined {
   const open = `<${tag}>`
-  const at = text.lastIndexOf(open)
-  if (at === -1) return undefined
-  const position = at + open.length
-  let offset = 0
+  const openNoClose = `<${tag}`
+  let accumulated = ''
+  let found = -1
+  let fusedClose = false
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!.token
-    const start = offset
-    const end = offset + token.length
-    offset = end
-    if (end <= position) continue
-    // This token covers `position`; the part before it belongs to the tag.
-    const prefix = token.slice(0, Math.max(0, position - start))
-    const remainder = token.slice(prefix.length)
-    if (remainder.trim() === '') {
-      // Whitespace-only remainder (e.g. `>` or `> `): the letter is in a later token.
-      // Skip following whitespace-only tokens.
-      let j = i + 1
-      while (j < tokens.length && tokens[j]!.token.trim() === '') j++
-      return j < tokens.length ? { index: j, prefix: '' } : undefined
+    accumulated += token
+    // A whitespace-only token leaves the trimmed text unchanged and would match
+    // the tag a second time, shadowing the distribution captured at the
+    // previous position.
+    if (token.trim() === '') continue
+    const trimmed = accumulated.trimEnd()
+    if (trimmed.endsWith(open)) {
+      found = i
+      fusedClose = false
+    } else if (trimmed.endsWith(openNoClose)) {
+      found = i
+      fusedClose = true
     }
-    return { index: i, prefix }
   }
-  return undefined
+  if (found === -1) return undefined
+  let j = found + 1
+  while (j < tokens.length && tokens[j]!.token.trim() === '') j++
+  if (j >= tokens.length) return undefined
+  if (fusedClose && tokens[j]!.token.trim() === '>') {
+    // The closing bracket came as its own token; the letter follows.
+    j++
+    while (j < tokens.length && tokens[j]!.token.trim() === '') j++
+    if (j >= tokens.length) return undefined
+    fusedClose = false
+  }
+  return { index: j, stripClose: fusedClose }
 }
 
 /**
@@ -85,17 +97,14 @@ export function extractScore(
   valueOf: (letter: string) => number | undefined,
 ): ScoreExtraction {
   if (tokens !== undefined && tokens.length > 0) {
-    const located = locateLetterToken(text, tokens, tag)
+    const located = locateLetterToken(tokens, tag)
     if (located !== undefined) {
       const token = tokens[located.index]!
       const mass: Record<string, number> = {}
       const consider = (candidate: string, logprob: number): void => {
-        let body = candidate
-        if (located.prefix !== '' && body.startsWith(located.prefix)) body = body.slice(located.prefix.length)
-        else if (located.prefix !== '') {
-          // Alternative without the fused prefix (e.g. `A` vs `>A`): accept when it is a bare letter.
-          body = candidate
-        }
+        // `>A` (fused closing bracket) and `A` both mean the letter A.
+        let body = candidate.trimStart()
+        if (body.startsWith('>')) body = body.slice(1)
         const letter = asLetter(body)
         if (letter === undefined) return
         const p = Math.exp(logprob)

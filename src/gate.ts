@@ -124,6 +124,7 @@ export function installGate(ctx: Context, deps: GateDeps): void {
       signal: deadline,
       onError: 'tie',
       retriesOnFallback: config.backend.retriesOnFallback,
+    warmPrefix: config.backend.warmPrefix,
       onCall: config.verbose
         ? info => deps.log.info(`dsh-verifier: ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms`
           + (info.promptTokens !== undefined ? ` prompt=${info.promptTokens}` : '')

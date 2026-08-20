@@ -13,13 +13,16 @@
           baseURL: http://YOUR_SPARK_HOST:8000/v1
           model: deepseek-v4-flash-0731
           apiKeyEnv: SPARK_API_KEY
-          reasoningEffort: none
-          timeoutMs: 240000
-          maxTokens: 4096
+          # The reference verifies DeepSeek V4 Flash with thinking at `high` and a 32k budget;
+          # `none` is the fast setting (about 6x cheaper, noticeably worse calibration).
+          reasoningEffort: high
+          timeoutMs: 600000
+          maxTokens: 32768
           temperature: 1.0
           topLogprobs: 20
           concurrency: 4
           retriesOnFallback: 1
+          warmPrefix: true
         gate:
           enabled: true
           threshold: 0.6
@@ -31,15 +34,15 @@
           minSteps: 1
           skipSubagents: true
           feedbackMaxChars: 2500
-          timeoutMs: 300000
+          timeoutMs: 900000
         select:
           evaluations: 2
           pivots: 1
           seed: 0
           criteria: general
         trajectory:
-          maxStepChars: 2000
-          maxTotalChars: 60000
+          maxStepChars: 6000
+          maxTotalChars: 300000
         snapshot:
           # `ui_snapshot`: headless screenshots (viewports x light/dark) for analyze_image.
           enabled: true

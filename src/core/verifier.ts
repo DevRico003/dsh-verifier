@@ -26,6 +26,8 @@ export interface VerifierOptions {
   onError: 'tie' | 'raise'
   /** Re-ask the backend when a completion carries no parseable score or failed (default 1). */
   retriesOnFallback?: number
+  /** Finish the first call per shared prompt prefix before fanning out the rest (prefix-cache warm-up, default true). */
+  warmPrefix?: boolean
   /** Optional sink for per-call diagnostics. */
   onCall?: (info: CallInfo) => void
 }
@@ -88,6 +90,29 @@ function limiter(concurrency: number): <T>(task: () => Promise<T>) => Promise<T>
   })
 }
 
+/**
+ * Run `jobs` with the reference's warm-up wave: one job per distinct prefix
+ * key first, then the rest, so a prefix-caching backend serves the shared
+ * trajectory from cache instead of prefilling it once per call.
+ */
+async function runWarm<T>(jobs: { key: string; run: () => Promise<T> }[], warm: boolean): Promise<T[]> {
+  if (!warm || jobs.length <= 1) return Promise.all(jobs.map(job => job.run()))
+  const results: (T | undefined)[] = new Array(jobs.length)
+  const seen = new Set<string>()
+  const first: number[] = []
+  const rest: number[] = []
+  jobs.forEach((job, index) => {
+    if (seen.has(job.key)) rest.push(index)
+    else {
+      seen.add(job.key)
+      first.push(index)
+    }
+  })
+  await Promise.all(first.map(async index => { results[index] = await jobs[index]!.run() }))
+  await Promise.all(rest.map(async index => { results[index] = await jobs[index]!.run() }))
+  return results as T[]
+}
+
 async function scoreDirectedPair(
   problem: string,
   a: string,
@@ -100,7 +125,7 @@ async function scoreDirectedPair(
     for (let repeat = 0; repeat < options.evaluations; repeat++) jobs.push({ criterion, repeat })
   }
   const retries = options.retriesOnFallback ?? 1
-  const samples = await Promise.all(jobs.map(({ criterion, repeat }) => run(async () => {
+  const samples = await runWarm(jobs.map(({ criterion, repeat }) => ({ key: repeat % 2 === 1 ? 'ba' : 'ab', run: () => run(async () => {
     const swapped = repeat % 2 === 1
     const prompt = swapped
       ? buildPairwisePrompt(problem, b, a, criterion, options.groundTruthNote)
@@ -142,7 +167,7 @@ async function scoreDirectedPair(
       if (isScored(last.source)) break
     }
     return last
-  })))
+  }) })), options.warmPrefix ?? true)
   // Only real verdicts enter the directed reward; unscored samples stay visible in `samples`.
   const scored = samples.filter(sample => isScored(sample.source))
   const pool = scored.length > 0 ? scored : samples
@@ -205,8 +230,11 @@ function isScored(source: ScoreSource | 'error'): boolean {
 export async function assess(problem: string, trajectory: string, options: VerifierOptions): Promise<AssessResult> {
   const run = limiter(options.concurrency)
   const retries = options.retriesOnFallback ?? 1
-  const perCriterion = await Promise.all(options.criteria.map(async (criterion) => {
-    const repeats = await Promise.all(Array.from({ length: options.evaluations }, (_, repeat) => run(async () => {
+  const jobs: { criterion: Criterion; repeat: number }[] = []
+  for (const criterion of options.criteria) {
+    for (let repeat = 0; repeat < options.evaluations; repeat++) jobs.push({ criterion, repeat })
+  }
+  const samples = await runWarm(jobs.map(({ criterion, repeat }) => ({ key: 'assess', run: () => run(async () => {
       const prompt = buildAssessmentPrompt(problem, trajectory, criterion, options.groundTruthNote)
       let last: { score: number; analysis: string; source: ScoreSource | 'error' } = { score: NEUTRAL_SCORE, analysis: '', source: 'error' }
       for (let attempt = 0; attempt <= retries; attempt++) {
@@ -240,14 +268,16 @@ export async function assess(problem: string, trajectory: string, options: Verif
         if (isScored(last.source)) break
       }
       return last
-    })))
+  }) })), options.warmPrefix ?? true)
+  const perCriterion = options.criteria.map((criterion) => {
+    const repeats = jobs.map((job, index) => job.criterion === criterion ? samples[index]! : undefined).filter((sample): sample is NonNullable<typeof sample> => sample !== undefined)
     const scored = repeats.filter(sample => isScored(sample.source))
     const score = scored.length === 0 ? NEUTRAL_SCORE : scored.reduce((sum, sample) => sum + sample.score, 0) / scored.length
     // Keep the analysis of the harshest scored repeat: that is the most useful feedback.
     const pool = scored.length > 0 ? scored : repeats
     const harshest = pool.reduce((low, sample) => sample.score < low.score ? sample : low, pool[0]!)
     return { id: criterion.id, name: criterion.name, score, analysis: harshest.analysis, source: harshest.source, scored: scored.length > 0 }
-  }))
+  })
   const valid = perCriterion.filter(entry => entry.scored)
   const score = valid.length === 0 ? NEUTRAL_SCORE : valid.reduce((sum, entry) => sum + entry.score, 0) / valid.length
   return { score, perCriterion, scoredCriteria: valid.length }

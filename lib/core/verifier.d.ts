@@ -22,6 +22,8 @@ export interface VerifierOptions {
     onError: 'tie' | 'raise';
     /** Re-ask the backend when a completion carries no parseable score or failed (default 1). */
     retriesOnFallback?: number;
+    /** Finish the first call per shared prompt prefix before fanning out the rest (prefix-cache warm-up, default true). */
+    warmPrefix?: boolean;
     /** Optional sink for per-call diagnostics. */
     onCall?: (info: CallInfo) => void;
 }

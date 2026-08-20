@@ -14,7 +14,7 @@ export interface BackendConfig {
     provider: string;
     /** Environment variable / credential reference holding the API key for `openai-compatible`; empty = no auth header. */
     apiKeyEnv: string;
-    /** Verifier reasoning effort. `none` keeps verdicts cheap; empty string sends nothing. */
+    /** Verifier reasoning effort sent as `reasoning_effort`. The reference verifies DeepSeek V4 Flash at `high` with a 32k budget; `none` is the cheap setting; empty string sends nothing. */
     reasoningEffort: string;
     /** Per-call timeout. */
     timeoutMs: number;
@@ -28,6 +28,8 @@ export interface BackendConfig {
     concurrency: number;
     /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
     retriesOnFallback: number;
+    /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. */
+    warmPrefix: boolean;
 }
 export interface GateConfig {
     /** Verify every turn at `agent/turn-stopping`. */

@@ -34,6 +34,7 @@ function baseOptions(deps: ToolDeps, criteriaName: string | undefined, evaluatio
     signal,
     onError: 'tie',
     retriesOnFallback: config.backend.retriesOnFallback,
+    warmPrefix: config.backend.warmPrefix,
   }
 }
 

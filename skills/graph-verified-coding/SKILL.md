@@ -33,7 +33,7 @@ If a `[dsh-verifier]` message arrives after your turn, treat it as a failed gate
 
 ## Reference
 
-**Tools and cost on this setup** (one model, six parallel slots, verifier calls run without thinking):
+**Tools and cost on this setup** (one model, six parallel slots; the verifier thinks at effort `high`, so a gate over a long turn takes minutes, which is the price of a verdict worth acting on):
 
 | Tool | Use | Cost |
 | --- | --- | --- |

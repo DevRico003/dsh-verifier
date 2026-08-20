@@ -16,7 +16,7 @@ export interface BackendConfig {
   provider: string
   /** Environment variable / credential reference holding the API key for `openai-compatible`; empty = no auth header. */
   apiKeyEnv: string
-  /** Verifier reasoning effort. `none` keeps verdicts cheap; empty string sends nothing. */
+  /** Verifier reasoning effort sent as `reasoning_effort`. The reference verifies DeepSeek V4 Flash at `high` with a 32k budget; `none` is the cheap setting; empty string sends nothing. */
   reasoningEffort: string
   /** Per-call timeout. */
   timeoutMs: number
@@ -30,6 +30,8 @@ export interface BackendConfig {
   concurrency: number
   /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
   retriesOnFallback: number
+  /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. */
+  warmPrefix: boolean
 }
 
 export interface GateConfig {
@@ -112,13 +114,14 @@ export const BackendConfig: z<BackendConfig> = z.object({
   model: z.string().default('default'),
   provider: z.string().default('spark'),
   apiKeyEnv: z.string().default(''),
-  reasoningEffort: z.string().default('none'),
-  timeoutMs: z.number().default(240_000),
-  maxTokens: z.number().default(4096),
+  reasoningEffort: z.string().default('high'),
+  timeoutMs: z.number().default(600_000),
+  maxTokens: z.number().default(32_768),
   temperature: z.number().default(1.0),
   topLogprobs: z.number().default(20),
   concurrency: z.number().default(4),
   retriesOnFallback: z.number().default(1),
+  warmPrefix: z.boolean().default(true),
 })
 
 export const GateConfig: z<GateConfig> = z.object({
@@ -133,7 +136,7 @@ export const GateConfig: z<GateConfig> = z.object({
   skipSubagents: z.boolean().default(true),
   handoffTools: z.array(z.string()).default(['ask_user', 'ask_user_question', 'AskUserQuestion']),
   feedbackMaxChars: z.number().default(2500),
-  timeoutMs: z.number().default(300_000),
+  timeoutMs: z.number().default(900_000),
 })
 
 export const SelectConfig: z<SelectConfig> = z.object({
@@ -144,8 +147,8 @@ export const SelectConfig: z<SelectConfig> = z.object({
 })
 
 export const TrajectoryConfig: z<TrajectoryConfig> = z.object({
-  maxStepChars: z.number().default(2000),
-  maxTotalChars: z.number().default(60_000),
+  maxStepChars: z.number().default(6000),
+  maxTotalChars: z.number().default(300_000),
 })
 
 export const SnapshotConfig: z<SnapshotConfig> = z.object({

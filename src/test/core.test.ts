@@ -5,7 +5,7 @@ import { pairwiseValue, progressValue, normalizeExpected, GRANULARITY } from '..
 import { bradleyTerry, ringCycle, pivotRoundPairs, pivotTournament, mulberry32, Accumulator, selectPivots } from '../core/tournament.js'
 import { buildPairwisePrompt, buildAssessmentPrompt, resolveCriteria } from '../core/prompts.js'
 import { assess, compare, select } from '../core/verifier.js'
-import { UnconfiguredBackend, placeholderHost, type VerifierBackend, type CompletionRequest, type Completion } from '../core/backend.js'
+import { OpenAICompatibleBackend, UnconfiguredBackend, placeholderHost, type VerifierBackend, type CompletionRequest, type Completion } from '../core/backend.js'
 import { buildTrajectory } from '../trajectory.js'
 import { renderFeedback, skipReason } from '../gate.js'
 
@@ -197,4 +197,50 @@ test('placeholder hosts are detected and the stand-in backend explains the fix i
   const result = await assess('t', 'trace', options)
   assert.equal(result.scoredCriteria, 0)
   assert.ok(result.perCriterion[0]!.analysis.includes('set verifier.backend.baseURL'), result.perCriterion[0]!.analysis)
+})
+
+test('extractScore: reasoning tokens before the tag (vLLM thinking) and split tag tokens', () => {
+  // Token stream = reasoning + answer, as vLLM returns logprobs with thinking on; `text` is the answer only.
+  const text = '<score> C </score>'
+  const mk = (token: string, alts: [string, number][] = []): { token: string; logprob: number; topLogprobs: { token: string; logprob: number }[] } =>
+    ({ token, logprob: Math.log(0.9), topLogprobs: alts.map(([t, p]) => ({ token: t, logprob: Math.log(p) })) })
+  const tokens = [
+    mk('We'), mk(' think'), mk(' about'), mk(' <'), mk('score'), mk('>'), mk(' later'), mk('.'),
+    mk('<'), mk('score'), mk('>'), mk(' C', [[' C', 0.6], [' D', 0.3], ['C', 0.1]]), mk(' </'), mk('score'), mk('>'),
+  ]
+  const result = extractScore(text, tokens, 'score', progressValue)
+  assert.equal(result.source, 'logprobs')
+  // mass: C = max(0.6 alt, 0.1 alt, 0.9 own) = 0.9 (value 3), D = 0.3 (value 4) -> expected (0.9*3+0.3*4)/1.2 = 3.25 -> (3.25-1)/19
+  assert.ok(Math.abs(result.score - ((0.9 * 3 + 0.3 * 4) / 1.2 - 1) / 19) < 1e-9, String(result.score))
+})
+
+test('runWarm: the first call of a prefix finishes before the rest start', async () => {
+  const order: string[] = []
+  let inFlight = 0
+  let maxInFlight = 0
+  const backend: VerifierBackend = {
+    label: 'fake', supportsLogprobs: false,
+    async complete(request: CompletionRequest): Promise<Completion> {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      order.push(request.prompt.includes('Evaluation Guideline for Correctness') ? 'correctness' : 'other')
+      await new Promise(resolve => setTimeout(resolve, 20))
+      inFlight--
+      return { text: 'ok\n<score> T </score>' }
+    },
+  }
+  const set = resolveCriteria('general')
+  const options = { backend, criteria: set.criteria, groundTruthNote: set.groundTruthNote, evaluations: 1, concurrency: 4, maxTokens: 100, temperature: 1, topLogprobs: 20, onError: 'tie' as const, retriesOnFallback: 0, warmPrefix: true }
+  const result = await assess('t', 'trace', options)
+  assert.equal(result.scoredCriteria, 3)
+  assert.equal(order[0], 'correctness')
+  assert.ok(maxInFlight <= 2, `warm-up must run alone first, saw ${maxInFlight} in flight`)
+})
+
+test('OpenAICompatibleBackend fails loud when the reply has reasoning but no answer', async () => {
+  const backend = new OpenAICompatibleBackend({
+    baseURL: 'http://example.invalid/v1', model: 'm', timeoutMs: 1000, reasoningEffort: 'high',
+    fetchImpl: (async () => new Response(JSON.stringify({ choices: [{ message: { content: null, reasoning: 'x'.repeat(50) }, finish_reason: 'length' }] }), { status: 200 })) as typeof fetch,
+  })
+  await assert.rejects(() => backend.complete({ prompt: 'p', maxTokens: 10, temperature: 1, logprobs: true, topLogprobs: 20 }), /no answer text.*finish_reason=length/)
 })

@@ -76,12 +76,14 @@ verifier:
     baseURL: http://YOUR_SPARK_HOST:8000/v1
     model: deepseek-v4-flash-0731
     apiKeyEnv: SPARK_API_KEY       # env var or credential reference; empty = no Authorization header
-    reasoningEffort: none          # keep the verifier cheap; none|low|high|max on vLLM
-    maxTokens: 4096
+    reasoningEffort: high          # the reference setting for DeepSeek V4 Flash; none = fast and cheap, worse calibration
+    maxTokens: 32768               # reasoning shares the budget; too small = no score tags
     temperature: 1.0               # the reference default; keeps the logprob distribution informative
     topLogprobs: 20
     concurrency: 4
     retriesOnFallback: 1
+    warmPrefix: true               # first call per prompt prefix alone, then the rest (prefix cache)
+    timeoutMs: 600000
   gate:
     enabled: true
     threshold: 0.6
@@ -93,15 +95,15 @@ verifier:
     skipSubagents: true            # child agents are not gated; their parent turn is
     minSteps: 1
     feedbackMaxChars: 2500
-    timeoutMs: 300000
+    timeoutMs: 900000
   select:
     evaluations: 2                 # for the tools; 2 or more cancels slot bias
     pivots: 1
     seed: 0
     criteria: general
   trajectory:
-    maxStepChars: 2000
-    maxTotalChars: 60000
+    maxStepChars: 6000             # per tool output / message excerpt
+    maxTotalChars: 300000          # whole turn; oldest steps are elided first
   snapshot:
     enabled: true                  # the ui_snapshot tool
     channels: [chrome, chromium]   # tried in order; chrome = installed Google Chrome
@@ -118,7 +120,13 @@ verifier:
 
 ## Cost
 
-One gate pass is `criteria × evaluations` verifier calls, three by default, fanned out with `backend.concurrency`. On a vLLM server with prefix caching a short turn takes 6 to 10 seconds of wall clock, because the criterion sits at the prompt tail and the rest of the prompt is cached. `verifier_select` with three candidates is 5 pairs × 3 criteria × 2 repeats, about 30 calls.
+One gate pass is `criteria × evaluations` verifier calls, three by default. With `warmPrefix` the first call runs alone so the server caches the prompt prefix (task, trajectory, scale; the criterion sits at the tail), then the rest fan out. Cached input is what the reference measured: a 78% prefix hit rate and 3.4× fewer uncached input tokens on trajectory-heavy runs.
+
+The verifier thinks. `reasoningEffort: high` with a 32k budget is the setting the reference used for its DeepSeek-V4-Flash self-verification numbers (best-of-3 86.5% against 79.4% pass@1 on Terminal-Bench 2.1), and it is the default here. On a local vLLM that means a gate pass over a long turn takes one to several minutes of wall clock: prefill of the trajectory once, then reasoning per call. `reasoningEffort: none` brings a short turn down to 6 to 10 seconds but the verdict is a one-shot reading; use it for chat-heavy sessions, keep `high` for unattended coding runs where the gate is what catches the errors.
+
+With thinking on, vLLM returns the reasoning tokens inside `logprobs.content` as well; the score reader walks the token stream and takes the letter after the last `<score>` tag, so that is handled. A reply that spends the whole budget on reasoning carries no answer and is reported as a failed call (retried once, then unscored), never as a 0.5.
+
+`verifier_select` with three candidates is 5 pairs × 3 criteria × 2 repeats, about 30 calls; with thinking that is a few minutes on six slots.
 
 ## Unscored verdicts
 
