@@ -16,7 +16,7 @@ export interface BackendConfig {
   provider: string
   /** Environment variable / credential reference holding the API key for `openai-compatible`; empty = no auth header. */
   apiKeyEnv: string
-  /** Verifier reasoning effort sent as `reasoning_effort`. The reference verifies DeepSeek V4 Flash at `high` with a 32k budget; `none` is the cheap setting; empty string sends nothing. */
+  /** Verifier reasoning effort sent as `reasoning_effort`. `low` found the same defects as `high` in an A/B on this setup at a third of the time; `high` is the reference's setting on DeepSeek's hosted API; `none` is the one-shot reading; empty string sends nothing. */
   reasoningEffort: string
   /** Per-call timeout. */
   timeoutMs: number
@@ -148,7 +148,7 @@ export const BackendConfig: z<BackendConfig> = z.object({
   model: z.string().default('default'),
   provider: z.string().default('spark'),
   apiKeyEnv: z.string().default(''),
-  reasoningEffort: z.string().default('high'),
+  reasoningEffort: z.string().default('low'),
   timeoutMs: z.number().default(600_000),
   maxTokens: z.number().default(32_768),
   temperature: z.number().default(1.0),
@@ -156,7 +156,7 @@ export const BackendConfig: z<BackendConfig> = z.object({
   concurrency: z.number().default(4),
   retriesOnFallback: z.number().default(1),
   warmPrefix: z.boolean().default(false),
-  toolReasoningEffort: z.string().default('low'),
+  toolReasoningEffort: z.string().default(''),
 })
 
 export const GateConfig: z<GateConfig> = z.object({

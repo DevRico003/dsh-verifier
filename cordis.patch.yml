@@ -13,9 +13,12 @@
           baseURL: http://YOUR_SPARK_HOST:8000/v1
           model: deepseek-v4-flash-0731
           apiKeyEnv: SPARK_API_KEY
-          # The reference verifies DeepSeek V4 Flash with thinking at `high` and a 32k budget;
-          # `none` is the fast setting (about 6x cheaper, noticeably worse calibration).
-          reasoningEffort: high
+          # Thinking on. `low` found the same defects as `high` in an A/B on a DGX Spark pair
+          # (edit after the last test run, lint exit masked by a pipe, untested final patch)
+          # in 98 to 215 s per call; `high` took 346 to 736 s and timed out once. The
+          # reference used `high` on DeepSeek's hosted API, which is much faster than a
+          # local pair. `none` is the one-shot reading (6 to 10 s, worse calibration).
+          reasoningEffort: low
           timeoutMs: 600000
           maxTokens: 32768
           temperature: 1.0
@@ -25,9 +28,8 @@
           # Serial warm-up of the prompt prefix saves prefill work but doubles gate wall-clock;
           # on a local vLLM (prefill ~13k tok/s) the fan-out is the better trade.
           warmPrefix: false
-          # The verifier_* tools (node gates the agent calls itself) think at `low`: a minute or two
-          # per gate instead of five to ten. The end-of-turn gate and checkpoints use `reasoningEffort`.
-          toolReasoningEffort: low
+          # Effort for the verifier_* tools; empty = same as reasoningEffort.
+          toolReasoningEffort: ""
         gate:
           enabled: true
           threshold: 0.6

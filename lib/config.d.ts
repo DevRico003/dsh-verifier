@@ -14,7 +14,7 @@ export interface BackendConfig {
     provider: string;
     /** Environment variable / credential reference holding the API key for `openai-compatible`; empty = no auth header. */
     apiKeyEnv: string;
-    /** Verifier reasoning effort sent as `reasoning_effort`. The reference verifies DeepSeek V4 Flash at `high` with a 32k budget; `none` is the cheap setting; empty string sends nothing. */
+    /** Verifier reasoning effort sent as `reasoning_effort`. `low` found the same defects as `high` in an A/B on this setup at a third of the time; `high` is the reference's setting on DeepSeek's hosted API; `none` is the one-shot reading; empty string sends nothing. */
     reasoningEffort: string;
     /** Per-call timeout. */
     timeoutMs: number;

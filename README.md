@@ -80,14 +80,14 @@ verifier:
     baseURL: http://YOUR_SPARK_HOST:8000/v1
     model: deepseek-v4-flash-0731
     apiKeyEnv: SPARK_API_KEY       # env var or credential reference; empty = no Authorization header
-    reasoningEffort: high          # the reference setting for DeepSeek V4 Flash; none = fast and cheap, worse calibration
+    reasoningEffort: low           # thinking on; low matched high in an A/B here at a third of the time (see Cost)
     maxTokens: 32768               # reasoning shares the budget; too small = no score tags
     temperature: 1.0               # the reference default; keeps the logprob distribution informative
     topLogprobs: 20
     concurrency: 4
     retriesOnFallback: 1
     warmPrefix: false              # true = first call per prompt prefix alone, then the rest (saves prefill, doubles wall-clock)
-    toolReasoningEffort: low       # effort for the verifier_* tools; the gate and checkpoints use reasoningEffort
+    toolReasoningEffort: ""       # effort for the verifier_* tools; empty = reasoningEffort
     timeoutMs: 600000              # per verifier call; also lifts Node's 300 s fetch header timeout
   gate:
     enabled: true
@@ -152,7 +152,7 @@ Turn ends still get the full gate. A goal that runs in phases (one turn per phas
 
 One gate pass is `criteria × evaluations` verifier calls, three by default, fanned out together. `warmPrefix: true` runs the first call alone so the server caches the prompt prefix (task, trajectory, scale; the criterion sits at the tail) before the rest go out; that is the reference's 3.4× saving in uncached input tokens, worth it on a priced API or a slow prefill. On a local vLLM that prefills at over 10k tokens per second it only doubles the wall-clock of every gate, so it ships off.
 
-The verifier thinks. `reasoningEffort: high` with a 32k budget is the setting the reference used for its DeepSeek-V4-Flash self-verification numbers (best-of-3 86.5% against 79.4% pass@1 on Terminal-Bench 2.1), and it is the default here. On a local vLLM that means a gate pass over a long turn takes one to several minutes of wall clock: prefill of the trajectory once, then reasoning per call. `reasoningEffort: none` brings a short turn down to 6 to 10 seconds but the verdict is a one-shot reading; use it for chat-heavy sessions, keep `high` for unattended coding runs where the gate is what catches the errors. The `verifier_*` tools, which the agent calls as node gates many times per run, think at `toolReasoningEffort: low` over a trajectory capped at `toolMaxTotalChars`; at `high` with the full trajectory one node gate took ten minutes on a long turn, which is too slow for something that should happen after every node.
+The verifier thinks. The reference used `reasoning_effort: high` with a 32k budget for its DeepSeek-V4-Flash self-verification numbers (best-of-3 86.5% against 79.4% pass@1 on Terminal-Bench 2.1) on DeepSeek's hosted API. On a local DGX Spark pair `high` is too slow to block an agent on: in an A/B on one trajectory with three planted defects (an edit after the last test run, a lint exit masked by a pipe, an untested final patch) `high` took 346 to 736 s per call and one call timed out, while `low` took 98 to 215 s and named every defect, with scores within 0.06 of `high`. So `low` is the default here; set `high` if you verify through a fast hosted endpoint. `reasoningEffort: none` brings a short turn down to 6 to 10 seconds but the verdict is a one-shot reading; use it for chat-heavy sessions.
 
 With thinking on, vLLM returns the reasoning tokens inside `logprobs.content` as well; the score reader walks the token stream and takes the letter after the last `<score>` tag, so that is handled. A reply that spends the whole budget on reasoning carries no answer and is reported as a failed call (retried once, then unscored), never as a 0.5.
 
