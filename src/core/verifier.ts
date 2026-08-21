@@ -48,6 +48,15 @@ export interface CallInfo {
   detail?: string
 }
 
+/** One line for a thrown value: an Error's message, a plain object (an abort reason, a JSON error body) serialized, anything else stringified. */
+export function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null) {
+    try { return JSON.stringify(error).slice(0, 300) } catch { return Object.prototype.toString.call(error) }
+  }
+  return String(error)
+}
+
 function fallbackDetail(completion: Completion): string {
   return `finish=${completion.finishReason ?? '?'} reasoningChars=${completion.reasoningChars ?? 0} tokens=${completion.tokens?.length ?? 0} tail=${JSON.stringify(completion.text.slice(-240))}`
 }
@@ -170,7 +179,7 @@ async function scoreDirectedPair(
           ? { criterion: criterion.id, repeat, rewardA: slotB.score, rewardB: slotA.score, source }
           : { criterion: criterion.id, repeat, rewardA: slotA.score, rewardB: slotB.score, source }
       } catch (error) {
-        options.onCall?.({ kind: 'pairwise', criterion: criterion.id, repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
+        options.onCall?.({ kind: 'pairwise', criterion: criterion.id, repeat, durationMs: Date.now() - started, source: 'error', error: describeError(error) })
         if (options.onError === 'raise') throw error
         last = { criterion: criterion.id, repeat, rewardA: NEUTRAL_SCORE, rewardB: NEUTRAL_SCORE, source: 'error' }
       }
@@ -273,7 +282,7 @@ export async function assess(problem: string, trajectory: string, options: Verif
           })
           last = { score: extracted.score, analysis: analysisBefore(completion.text, ASSESS_TAG), source: extracted.source }
         } catch (error) {
-          options.onCall?.({ kind: 'assess', criterion: criterion.id, repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
+          options.onCall?.({ kind: 'assess', criterion: criterion.id, repeat, durationMs: Date.now() - started, source: 'error', error: describeError(error) })
           if (options.onError === 'raise') throw error
           last = { score: NEUTRAL_SCORE, analysis: `verifier call failed: ${String(error)}`, source: 'error' }
         }
@@ -334,7 +343,7 @@ export async function progress(
         options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: extracted.source, ...extracted.source === 'fallback' ? { detail: fallbackDetail(completion) } : {} })
         last = { score: extracted.score, source: extracted.source }
       } catch (error) {
-        options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
+        options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: 'error', error: describeError(error) })
         last = { score: NEUTRAL_SCORE, source: 'error' }
       }
       if (isScored(last.source)) break

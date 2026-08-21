@@ -42,6 +42,8 @@ export interface CallInfo {
     /** For a `fallback` reading: finish reason, reasoning size and the tail of the reply, so an unparseable verdict can be diagnosed from the log. */
     detail?: string;
 }
+/** One line for a thrown value: an Error's message, a plain object (an abort reason, a JSON error body) serialized, anything else stringified. */
+export declare function describeError(error: unknown): string;
 export interface PairwiseResult {
     rewardA: number;
     rewardB: number;
