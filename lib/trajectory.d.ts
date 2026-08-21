@@ -38,6 +38,14 @@ export declare function isTaskSource(source: {
  * @param limits - character caps.
  */
 export declare function buildTrajectory(events: readonly SessionEvent[], turn: number, limits: TrajectoryLimits): Trajectory;
+/**
+ * Join the steps within `cap` characters. When they do not fit, keep the
+ * opening steps (the task setup and first decisions, up to HEAD_SHARE of the
+ * cap) and the most recent steps, and elide the middle. The head is the same
+ * on every call, so a prefix-caching server reuses it across the gates of one
+ * turn; the tail carries the evidence the verifier judges.
+ */
+export declare function elideMiddle(steps: readonly string[], cap: number): string;
 /** A turn that opens with "Continue." (auto-continue, goal resume) rather than a fresh request. */
 export declare function isContinuation(firstTask: string): boolean;
 export interface VerifierDebt {

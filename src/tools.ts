@@ -138,7 +138,7 @@ export function installTools(ctx: Context, deps: ToolDeps): void {
       const trajectory = trace === undefined
         ? `--- Agent final answer ---\n${answer}`
         : `${trace}\n\n--- Agent final answer (self-reported) ---\n${answer}`
-      const result = await assess(task, trajectory, baseOptions(deps, criteria, evaluations ?? 1, exec.signal))
+      const result = await assess(task, trajectory, baseOptions(deps, criteria, evaluations ?? config.toolEvaluations, exec.signal))
       return {
         score: Number(result.score.toFixed(4)),
         pass: result.scoredCriteria > 0 && result.score >= config.gate.threshold,

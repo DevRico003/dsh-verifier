@@ -6,7 +6,7 @@ import { bradleyTerry, ringCycle, pivotRoundPairs, pivotTournament, mulberry32, 
 import { buildPairwisePrompt, buildAssessmentPrompt, resolveCriteria } from '../core/prompts.js'
 import { assess, compare, select, progress } from '../core/verifier.js'
 import { OpenAICompatibleBackend, UnconfiguredBackend, placeholderHost, type VerifierBackend, type CompletionRequest, type Completion } from '../core/backend.js'
-import { buildTrajectory, verifierDebt, isChildSession } from '../trajectory.js'
+import { buildTrajectory, verifierDebt, isChildSession, elideMiddle } from '../trajectory.js'
 import { checkpointTrigger, renderDebtNudge } from '../checkpoint.js'
 import { renderFeedback, skipReason } from '../gate.js'
 
@@ -182,7 +182,9 @@ test('buildTrajectory serializes one turn and elides old steps', () => {
   assert.ok(trajectory.trace.includes('[Output] a.txt'))
   assert.ok(!trajectory.trace.includes('other'))
   const tiny = buildTrajectory(events, 1, { maxStepChars: 2000, maxTotalChars: 60 })
-  assert.ok(tiny.trace.startsWith('(1 earlier step(s) elided)'))
+  // two steps, a cap that holds neither head nor both: the most recent step is kept, the middle marker names the cut
+  assert.ok(tiny.trace.includes('middle step(s) elided'), tiny.trace)
+  assert.ok(tiny.trace.includes('a.txt') || tiny.trace.includes('truncated'))
   assert.equal(skipReason({ ...trajectory, finalText: 'Which file?' }, { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'general', criteriaMode: 'auto', skipWhenAskingUser: true, minSteps: 1, minToolCallsWithoutOwnTask: 8, skipSubagents: true, handoffTools: ['ask_user'], feedbackMaxChars: 100, timeoutMs: 1000 }), 'final message asks the user a question')
   const feedback = renderFeedback({ score: 0.3, scoredCriteria: 1, perCriterion: [{ id: 'c', name: 'Correctness', score: 0.3, analysis: 'wrong sum', source: 'text', scored: true }] }, 0.6, 1, 1, 100)
   assert.ok(feedback.includes('wrong sum') && feedback.includes('0.30'))
@@ -399,4 +401,19 @@ test('a relay-opened turn with little work is not gated; with real work it is', 
   const t1 = buildTrajectory(events, 1, base)
   assert.equal(t1.ownTask, true)
   assert.equal(skipReason(t1, gate), undefined)
+})
+
+test('elideMiddle keeps a stable head and the most recent steps', () => {
+  const steps = Array.from({ length: 20 }, (_, i) => `step ${i} ${'x'.repeat(100)}`)
+  const whole = steps.join('\n\n')
+  assert.equal(elideMiddle(steps, whole.length), whole)
+  const cut = elideMiddle(steps, 900)
+  assert.ok(cut.length <= 900, String(cut.length))
+  assert.ok(cut.startsWith('step 0 '), cut.slice(0, 40))
+  assert.ok(cut.includes('step 19 '))
+  assert.ok(cut.includes('middle step(s) elided'))
+  assert.ok(!cut.includes('step 9 '))
+  // a larger cap keeps the same opening, so the prompt prefix is shared across gates of one turn
+  const wider = elideMiddle([...steps, 'step 20 tail'], 1200)
+  assert.ok(wider.startsWith(cut.split('\n\n')[0]!))
 })

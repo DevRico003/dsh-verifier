@@ -24,13 +24,17 @@
           maxTokens: 65536
           temperature: 1.0
           topLogprobs: 20
-          concurrency: 4
+          # 8 slots: a node gate is 3 criteria x 2 repeats, a select over three candidates 30 short calls.
+          concurrency: 8
           retriesOnFallback: 1
           # Serial warm-up of the prompt prefix saves prefill work but doubles gate wall-clock;
           # on a local vLLM (prefill ~13k tok/s) the fan-out is the better trade.
           warmPrefix: false
-          # Effort for the verifier_* tools; empty = same as reasoningEffort.
-          toolReasoningEffort: ""
+          # Effort for the verifier_* tools (the node gates the agent calls itself): `low`, two
+          # repeats per criterion (toolEvaluations) fanned out in parallel. A node gate then
+          # takes one low call of wall-clock instead of 5 to 8 minutes; the end-of-turn gate
+          # keeps `high`. Empty = same as reasoningEffort.
+          toolReasoningEffort: low
         gate:
           enabled: true
           threshold: 0.6
@@ -89,4 +93,6 @@
           editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]
           timeoutMs: 3600000
         tools: true
+        # Repeats per criterion for verifier_assess (the agent's `evaluations` argument overrides).
+        toolEvaluations: 2
         verbose: false

@@ -146,6 +146,8 @@ export interface Config {
   checkpoint: CheckpointConfig
   /** Register the `verifier_*` tools. */
   tools: boolean
+  /** Repeats per criterion for `verifier_assess` when the agent passes no `evaluations` (the tool call's K). */
+  toolEvaluations: number
   /** Log every verifier call at info level. */
   verbose: boolean
 }
@@ -234,6 +236,7 @@ export const Config: z<Config> = z.object({
   snapshot: SnapshotConfig.default({} as SnapshotConfig),
   checkpoint: CheckpointConfig.default({} as CheckpointConfig),
   tools: z.boolean().default(true),
+  toolEvaluations: z.number().default(2),
   verbose: z.boolean().default(false),
 })
 
@@ -243,6 +246,7 @@ export function validateConfig(config: Config): void {
   if (gate.threshold < 0 || gate.threshold > 1) throw new Error(`dsh-verifier-gate: gate.threshold must be within [0, 1], got ${gate.threshold}`)
   if (!Number.isInteger(gate.maxRounds) || gate.maxRounds < 0) throw new Error(`dsh-verifier-gate: gate.maxRounds must be an integer >= 0, got ${gate.maxRounds}`)
   if (!Number.isInteger(gate.evaluations) || gate.evaluations < 1) throw new Error(`dsh-verifier-gate: gate.evaluations must be an integer >= 1`)
+  if (!Number.isInteger(config.toolEvaluations) || config.toolEvaluations < 1) throw new Error(`dsh-verifier-gate: toolEvaluations must be an integer >= 1`)
   if (!Number.isInteger(select.evaluations) || select.evaluations < 1) throw new Error(`dsh-verifier-gate: select.evaluations must be an integer >= 1`)
   if (!Number.isInteger(select.pivots) || select.pivots < 1) throw new Error(`dsh-verifier-gate: select.pivots must be an integer >= 1`)
   if (!Number.isInteger(backend.topLogprobs) || backend.topLogprobs < 1 || backend.topLogprobs > 20) throw new Error(`dsh-verifier-gate: backend.topLogprobs must be an integer in [1, 20]`)

@@ -71,6 +71,43 @@ export function buildTrajectory(events: readonly SessionEvent[], turn: number, l
   return { ...own, trace }
 }
 
+/** Share of the cap kept as the stable head when a trace is elided. */
+const HEAD_SHARE = 0.2
+
+/**
+ * Join the steps within `cap` characters. When they do not fit, keep the
+ * opening steps (the task setup and first decisions, up to HEAD_SHARE of the
+ * cap) and the most recent steps, and elide the middle. The head is the same
+ * on every call, so a prefix-caching server reuses it across the gates of one
+ * turn; the tail carries the evidence the verifier judges.
+ */
+export function elideMiddle(steps: readonly string[], cap: number): string {
+  const whole = steps.join('\n\n')
+  if (whole.length <= cap || steps.length <= 1) return whole
+  const head: string[] = []
+  let headLength = 0
+  for (const step of steps) {
+    if (headLength + step.length + 2 > cap * HEAD_SHARE) break
+    head.push(step)
+    headLength += step.length + 2
+  }
+  const tail: string[] = []
+  let tailLength = 0
+  for (let i = steps.length - 1; i >= head.length; i--) {
+    const step = steps[i]!
+    if (headLength + tailLength + step.length + 2 + 60 > cap) break
+    tail.unshift(step)
+    tailLength += step.length + 2
+  }
+  if (tail.length === 0) {
+    // One recent step alone is longer than what remains of the cap: keep it and let the caller truncate.
+    tail.push(steps[steps.length - 1]!)
+  }
+  const elided = steps.length - head.length - tail.length
+  const marker = `(${elided} middle step(s) elided; ${head.length} opening and ${tail.length} most recent step(s) kept)`
+  return [...head, marker, ...tail].join('\n\n')
+}
+
 /** A turn that opens with "Continue." (auto-continue, goal resume) rather than a fresh request. */
 export function isContinuation(firstTask: string): boolean {
   return /^\s*Continue\b/i.test(firstTask)
@@ -157,15 +194,7 @@ function buildTurn(events: readonly SessionEvent[], turn: number, limits: Trajec
   }
   flush()
 
-  // Elide the oldest steps first when the whole trace exceeds the cap.
-  let kept = steps
-  let trace = kept.join('\n\n')
-  let elided = 0
-  while (trace.length > limits.maxTotalChars && kept.length > 1) {
-    kept = kept.slice(1)
-    elided++
-    trace = `(${elided} earlier step(s) elided)\n\n${kept.join('\n\n')}`
-  }
+  let trace = elideMiddle(steps, limits.maxTotalChars)
   if (trace.length > limits.maxTotalChars) trace = truncate(trace, limits.maxTotalChars)
 
   const contextNote = pluginContexts.length === 0

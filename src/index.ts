@@ -116,7 +116,7 @@ export function apply(ctx: Context, entry: Config): void {
     onChange: () => {
       const resolved = config()
       if (backend instanceof UnconfiguredBackend) ctx.logger.warn(backend.reason)
-      ctx.logger.info(`dsh-verifier-gate: active: backend ${backend.label}, gate ${resolved.gate.enabled ? `on (threshold ${resolved.gate.threshold}, maxRounds ${resolved.gate.maxRounds})` : 'off'}, checkpoints ${resolved.checkpoint.enabled ? `every ${resolved.checkpoint.everySteps} steps` : 'off'}, tools ${resolved.tools ? 'on' : 'off'}`)
+      ctx.logger.info(`dsh-verifier-gate: active: backend ${backend.label}, gate ${resolved.gate.enabled ? `on (threshold ${resolved.gate.threshold}, maxRounds ${resolved.gate.maxRounds})` : 'off'}, checkpoints ${resolved.checkpoint.enabled ? `every ${resolved.checkpoint.everySteps} steps` : 'off'}, tools ${resolved.tools ? `on (effort ${resolved.backend.toolReasoningEffort === '' ? resolved.backend.reasoningEffort : resolved.backend.toolReasoningEffort}, ${resolved.toolEvaluations} repeat(s))` : 'off'}, effort ${resolved.backend.reasoningEffort}, concurrency ${resolved.backend.concurrency}`)
     },
   })
 

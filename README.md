@@ -130,10 +130,10 @@ verifier:
     maxTokens: 65536               # reasoning shares the budget; room so a long think still ends in an answer
     temperature: 1.0               # the reference default; keeps the logprob distribution informative
     topLogprobs: 20
-    concurrency: 4
+    concurrency: 8                 # a node gate is 6 calls, a select about 30; they fan out together
     retriesOnFallback: 1
     warmPrefix: false              # true = first call per prompt prefix alone, then the rest (saves prefill, doubles wall-clock)
-    toolReasoningEffort: ""       # effort for the verifier_* tools; empty = reasoningEffort
+    toolReasoningEffort: low       # effort for the verifier_* tools (node gates); empty = reasoningEffort
     timeoutMs: 3600000             # last-resort cap per call
     idleTimeoutMs: 900000          # abort when the stream delivers nothing for this long (a queued request is silent until scheduled)
   gate:
@@ -156,7 +156,7 @@ verifier:
     criteria: general
   trajectory:
     maxStepChars: 6000             # per tool output / message excerpt
-    maxTotalChars: 300000          # whole turn; oldest steps are elided first
+    maxTotalChars: 300000          # whole turn; over the cap the middle is elided, the opening and the most recent steps stay
     continuationTurns: 1           # a turn opening with "Continue." gets this many earlier turns prepended
     toolMaxTotalChars: 80000       # trajectory cap for the verifier_* tools
   checkpoint:
@@ -183,6 +183,7 @@ verifier:
     navigationTimeoutMs: 30000
     dir: ""                        # empty = $DSH_HOME/verifier/snapshots
   tools: true
+  toolEvaluations: 2               # repeats per criterion for verifier_assess; the tool's evaluations argument overrides
   verbose: false
 ```
 
@@ -206,7 +207,9 @@ The verifier thinks at `high`, the reference's setting for its DeepSeek-V4-Flash
 
 With thinking on, vLLM returns the reasoning tokens inside `logprobs.content` as well; the score reader walks the token stream and takes the letter after the last `<score>` tag, so that is handled. A reply that spends the whole budget on reasoning carries no answer and is reported as a failed call (retried once, then unscored), never as a 0.5.
 
-`verifier_select` with three candidates is 5 pairs × 3 criteria × 2 repeats, about 30 calls; with thinking that is a few minutes on six slots.
+The `verifier_*` tools are the node gates the agent calls itself, several per turn, and the agent waits for each one. They run at `toolReasoningEffort: low` with `toolEvaluations: 2` repeats per criterion: six calls fanned out on the eight slots, one low call of wall-clock (one to two minutes on the Spark pair) instead of the five to eight minutes a `high` gate took in the anime run, with repetition as the second reading. The end-of-turn gate keeps `high`. `verifier_select` with three candidates is 5 pairs × 3 criteria × 2 repeats, about 30 short calls, a few minutes on eight slots; at `high` on four slots it took 22 minutes.
+
+When a turn outgrows the trajectory cap, the opening steps stay and the middle is elided, so every gate of one turn sends the same prefix and a prefix-caching server (vLLM) prefills only the tail.
 
 ## Unscored verdicts
 

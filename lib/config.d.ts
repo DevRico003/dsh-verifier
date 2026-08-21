@@ -138,6 +138,8 @@ export interface Config {
     checkpoint: CheckpointConfig;
     /** Register the `verifier_*` tools. */
     tools: boolean;
+    /** Repeats per criterion for `verifier_assess` when the agent passes no `evaluations` (the tool call's K). */
+    toolEvaluations: number;
     /** Log every verifier call at info level. */
     verbose: boolean;
 }
