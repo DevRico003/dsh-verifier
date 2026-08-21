@@ -81,6 +81,9 @@
           # blocking: a triggered checkpoint is assessed while the agent waits at the next step boundary,
           # so the findings describe the state the agent is in when it reads them.
           deliver: blocking
+          # Checkpoints are frequent and block the agent when they trigger: `low` keeps them quick.
+          # The end-of-turn gate and the verifier_* tools keep backend.reasoningEffort (high).
+          reasoningEffort: low
           # Remind the agent to gate after this many file edits without a verifier_* call.
           gateDebtEdits: 12
           editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]

@@ -125,6 +125,8 @@ export interface CheckpointConfig {
   maxSteers: number
   /** `blocking`: a triggered checkpoint is assessed at the next step boundary while the agent waits, so the findings are fresh. `background`: assess and steer asynchronously. */
   deliver: 'blocking' | 'background'
+  /** Reasoning effort for checkpoint readings and their assessments; empty = `backend.reasoningEffort`. `low` keeps the frequent mid-turn work quick; the end-of-turn gate keeps the backend effort. */
+  reasoningEffort: string
   /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */
   gateDebtEdits: number
   /** Tool names that count as file edits. */
@@ -217,6 +219,7 @@ export const CheckpointConfig: z<CheckpointConfig> = z.object({
   stallReadings: z.number().default(2),
   maxSteers: z.number().default(3),
   deliver: z.union(['blocking', 'background']).default('blocking'),
+  reasoningEffort: z.string().default('low'),
   gateDebtEdits: z.number().default(12),
   editTools: z.array(z.string()).default(['write', 'edit', 'str_replace_editor', 'apply_patch', 'notebook_edit']),
   timeoutMs: z.number().default(3_600_000),

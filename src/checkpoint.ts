@@ -134,6 +134,7 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
     topLogprobs: config.backend.topLogprobs,
     signal: deadline,
     warmPrefix: config.backend.warmPrefix,
+    ...checkpoint.reasoningEffort !== '' ? { reasoningEffort: checkpoint.reasoningEffort } : {},
     onCall: config.verbose
       ? (info: { kind: string; criterion: string; repeat: number; source: string; durationMs: number; error?: string }) => deps.log.info(`dsh-verifier: checkpoint ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms${info.error !== undefined ? ` error=${info.error}` : ''}`)
       : undefined,
@@ -193,6 +194,7 @@ async function assessForSteer(agent: Agent, turn: number, pending: { step: numbe
     onError: 'tie',
     retriesOnFallback: config.backend.retriesOnFallback,
     warmPrefix: config.backend.warmPrefix,
+    ...checkpoint.reasoningEffort !== '' ? { reasoningEffort: checkpoint.reasoningEffort } : {},
   }
   const started = Date.now()
   let result: AssessResult

@@ -118,6 +118,8 @@ export interface CheckpointConfig {
     maxSteers: number;
     /** `blocking`: a triggered checkpoint is assessed at the next step boundary while the agent waits, so the findings are fresh. `background`: assess and steer asynchronously. */
     deliver: 'blocking' | 'background';
+    /** Reasoning effort for checkpoint readings and their assessments; empty = `backend.reasoningEffort`. `low` keeps the frequent mid-turn work quick; the end-of-turn gate keeps the backend effort. */
+    reasoningEffort: string;
     /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */
     gateDebtEdits: number;
     /** Tool names that count as file edits. */

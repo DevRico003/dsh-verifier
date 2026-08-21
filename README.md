@@ -124,6 +124,7 @@ verifier:
     stallReadings: 2               # consecutive stalled readings before a steer; a fall steers at once
     maxSteers: 3                   # per turn
     deliver: blocking              # assess a triggered checkpoint while the agent waits (fresh findings); background = asynchronous
+    reasoningEffort: low           # checkpoints think at low (frequent, and they block when triggered); gate and tools keep backend.reasoningEffort
     gateDebtEdits: 12              # remind after this many file edits without a verifier_* call (0 = off)
     editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]
     timeoutMs: 3600000
