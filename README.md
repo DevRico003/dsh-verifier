@@ -183,7 +183,7 @@ verifier:
     navigationTimeoutMs: 30000
     dir: ""                        # empty = $DSH_HOME/verifier/snapshots
   tools: true
-  toolEvaluations: 2               # repeats per criterion for verifier_assess; the tool's evaluations argument overrides
+  toolEvaluations: 1               # repeats per criterion for verifier_assess; the tool's evaluations argument overrides
   verbose: false
 ```
 
@@ -207,7 +207,7 @@ The verifier thinks at `high`, the reference's setting for its DeepSeek-V4-Flash
 
 With thinking on, vLLM returns the reasoning tokens inside `logprobs.content` as well; the score reader walks the token stream and takes the letter after the last `<score>` tag, so that is handled. A reply that spends the whole budget on reasoning carries no answer and is reported as a failed call (retried once, then unscored), never as a 0.5.
 
-The `verifier_*` tools are the node gates the agent calls itself, several per turn, and the agent waits for each one. They run at `toolReasoningEffort: low` with `toolEvaluations: 2` repeats per criterion: six calls fanned out on the eight slots, one low call of wall-clock (one to two minutes on the Spark pair) instead of the five to eight minutes a `high` gate took in the anime run, with repetition as the second reading. The end-of-turn gate keeps `high`. `verifier_select` with three candidates is 5 pairs × 3 criteria × 2 repeats, about 30 short calls, a few minutes on eight slots; at `high` on four slots it took 22 minutes.
+The `verifier_*` tools are the node gates the agent calls itself, several per turn, and the agent waits for each one. They run at `toolReasoningEffort: low`, three calls fanned out, the end-of-turn gate keeps `high`. Measured in one run on the Spark pair with a 27k-token trajectory: `high` took five to eight minutes per node gate; `low` with `toolEvaluations: 2` (six concurrent calls) 4.3 minutes, each call 140 to 257 s because the six share the GPUs; `low` with one repeat about three minutes. The findings at `low` named the same gaps (an unobserved cache hit, an endpoint never called live) as the `high` gates had, so one repeat is the default and `toolEvaluations: 2` is there for a second reading. `verifier_select` with three candidates is 5 pairs × 3 criteria × 2 repeats, about 30 short calls, a few minutes on eight slots; at `high` on four slots it took 22 minutes.
 
 When a turn outgrows the trajectory cap, the opening steps stay and the middle is elided, so every gate of one turn sends the same prefix and a prefix-caching server (vLLM) prefills only the tail.
 

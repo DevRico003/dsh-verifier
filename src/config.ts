@@ -236,7 +236,7 @@ export const Config: z<Config> = z.object({
   snapshot: SnapshotConfig.default({} as SnapshotConfig),
   checkpoint: CheckpointConfig.default({} as CheckpointConfig),
   tools: z.boolean().default(true),
-  toolEvaluations: z.number().default(2),
+  toolEvaluations: z.number().default(1),
   verbose: z.boolean().default(false),
 })
 
