@@ -33,6 +33,12 @@ export declare const NEUTRAL_SCORE = 0.5;
  * @param valueOf - letter → scale value (pairwise or progress orientation).
  */
 export declare function extractScore(text: string, tokens: TokenLogprob[] | undefined, tag: string, valueOf: (letter: string) => number | undefined): ScoreExtraction;
+/**
+ * A reply that skipped the tags: a bare letter as the whole reply or its last
+ * line (`S`), or `c1: S` / `Checkpoint 1: S` style (the reference's bare-line
+ * fallback for progress scoring).
+ */
+export declare function parseBareLetter(text: string, tag: string): string | undefined;
 /** Last `<tag> X </tag>` letter in the text, case-insensitive. */
 export declare function parseLiteralLetter(text: string, tag: string): string | undefined;
 /** The analysis portion of a verdict: everything before the first score tag. */

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { extractScore, parseLiteralLetter, analysisBefore } from '../core/scoring.js'
+import { extractScore, parseLiteralLetter, parseBareLetter, analysisBefore } from '../core/scoring.js'
 import { pairwiseValue, progressValue, normalizeExpected, GRANULARITY } from '../core/scale.js'
 import { bradleyTerry, ringCycle, pivotRoundPairs, pivotTournament, mulberry32, Accumulator, selectPivots } from '../core/tournament.js'
 import { buildPairwisePrompt, buildAssessmentPrompt, resolveCriteria } from '../core/prompts.js'
@@ -333,4 +333,24 @@ test('OpenAICompatibleBackend sends the per-request reasoning effort over the ba
   assert.equal(body['reasoning_effort'], 'low')
   await backend.complete({ prompt: 'p', maxTokens: 10, temperature: 1, logprobs: false, topLogprobs: 20 })
   assert.equal(body['reasoning_effort'], 'high')
+})
+
+
+test('progress reading survives a quoted format in the reasoning and a bare-letter reply', () => {
+  const mk = (token: string, alts: [string, number][] = []): { token: string; logprob: number; topLogprobs: { token: string; logprob: number }[] } =>
+    ({ token, logprob: Math.log(0.9), topLogprobs: alts.map(([t, p]) => ({ token: t, logprob: Math.log(p) })) })
+  // Reasoning quotes "<c1>LETTER</c1>" AFTER the real verdict? No: the verdict comes last in content, but the
+  // reasoning may quote the format; the quoted tag is followed by "LETTER", so it must be skipped.
+  const tokens = [mk('<c'), mk('1'), mk('>S', [['>S', 0.8], ['>N', 0.2]]), mk('</'), mk('c'), mk('1'), mk('>'), mk(' Format'), mk(' was'), mk(' <c'), mk('1'), mk('>'), mk('LETTER'), mk('</c1>')]
+  const r = extractScore('<c1>S</c1>', tokens, 'c1', progressValue)
+  assert.equal(r.source, 'logprobs')
+  assert.ok(r.score > 0.85, String(r.score))
+  // Bare replies
+  assert.equal(parseBareLetter('S', 'c1'), 'S')
+  assert.equal(parseBareLetter('Reasoning done.\n**R**', 'c1'), 'R')
+  assert.equal(parseBareLetter('c1: N', 'c1'), 'N')
+  assert.equal(parseBareLetter('Checkpoint 1: Q.', 'c1'), 'Q')
+  assert.equal(parseBareLetter('nothing here', 'c1'), undefined)
+  const bare = extractScore('S', undefined, 'c1', progressValue)
+  assert.equal(bare.source, 'text'); assert.equal(bare.letter, 'S')
 })
