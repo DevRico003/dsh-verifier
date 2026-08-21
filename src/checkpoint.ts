@@ -215,6 +215,11 @@ async function assessForSteer(agent: Agent, turn: number, pending: { step: numbe
     deps.log.warn(`dsh-verifier-gate: checkpoint assessment (trigger at step ${pending.step}) of ${agent.id} produced no verdict`)
     return undefined
   }
+  const steerBelow = checkpoint.steerBelow > 0 ? checkpoint.steerBelow : config.gate.threshold
+  if (result.score >= steerBelow) {
+    deps.log.info(`dsh-verifier-gate: checkpoint for ${agent.id} (trigger step ${pending.step}, ${pending.reason}): assessed ${result.score.toFixed(2)} >= ${steerBelow} in ${Date.now() - started}ms, not steering`)
+    return undefined
+  }
   deps.log.info(`dsh-verifier-gate: checkpoint steer for ${agent.id} (trigger step ${pending.step}, ${pending.reason}): assessed ${result.score.toFixed(2)} in ${Date.now() - started}ms, delivering`)
   return renderCheckpoint(pending.step, pending.score, pending.reason, result, config.gate.threshold, config.gate.feedbackMaxChars)
 }

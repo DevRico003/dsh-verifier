@@ -123,6 +123,8 @@ export interface CheckpointConfig {
   stallReadings: number
   /** Checkpoint steers per turn. */
   maxSteers: number
+  /** A triggered checkpoint is delivered only when its assessment scores below this (0 = below `gate.threshold`); a fall that the assessment does not confirm costs the agent nothing but the wait. */
+  steerBelow: number
   /** `blocking`: a triggered checkpoint is assessed at the next step boundary while the agent waits, so the findings are fresh. `background`: assess and steer asynchronously. */
   deliver: 'blocking' | 'background'
   /** Reasoning effort for checkpoint readings and their assessments; empty = `backend.reasoningEffort`. `low` keeps the frequent mid-turn work quick; the end-of-turn gate keeps the backend effort. */
@@ -220,6 +222,7 @@ export const CheckpointConfig: z<CheckpointConfig> = z.object({
   minRise: z.number().default(0.05),
   stallReadings: z.number().default(2),
   maxSteers: z.number().default(3),
+  steerBelow: z.number().default(0),
   deliver: z.union(['blocking', 'background']).default('blocking'),
   reasoningEffort: z.string().default('low'),
   gateDebtEdits: z.number().default(12),
