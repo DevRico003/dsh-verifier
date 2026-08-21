@@ -19,7 +19,8 @@
           # close verdicts; `none` is the one-shot reading.
           reasoningEffort: high
           timeoutMs: 3600000
-          idleTimeoutMs: 300000
+          # 15 min: a request queued behind a full server sends nothing until it is scheduled.
+          idleTimeoutMs: 900000
           maxTokens: 65536
           temperature: 1.0
           topLogprobs: 20

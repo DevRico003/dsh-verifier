@@ -89,7 +89,7 @@ verifier:
     warmPrefix: false              # true = first call per prompt prefix alone, then the rest (saves prefill, doubles wall-clock)
     toolReasoningEffort: ""       # effort for the verifier_* tools; empty = reasoningEffort
     timeoutMs: 3600000             # last-resort cap per call
-    idleTimeoutMs: 300000          # abort when the stream delivers nothing for this long
+    idleTimeoutMs: 900000          # abort when the stream delivers nothing for this long (a queued request is silent until scheduled)
   gate:
     enabled: true
     threshold: 0.6
