@@ -298,6 +298,8 @@ test('goal rounds count as the task; child sessions are recognised by header fie
   assert.equal(isChildSession({ meta: { parentSession: 'p' }, events: [] }), true)
   assert.equal(isChildSession({ origin: 'subagent', events: [] }), true)
   assert.equal(isChildSession({ events: [{ type: 'subagent/descriptor', data: {} }] as unknown as Parameters<typeof isChildSession>[0]['events'] }), true)
+  // spawned by another plugin (dsh-mnemon task agent): the descriptor lands after turn/start
+  assert.equal(isChildSession({ events: [{ type: 'turn/start', data: {} }, { type: 'agent/inbox/spliced', data: {} }, { type: 'subagent/descriptor', data: {} }] as unknown as Parameters<typeof isChildSession>[0]['events'] }), true)
 })
 
 test('a later turn that opens with "Continue." carries the goal objective forward as its task', () => {

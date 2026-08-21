@@ -233,9 +233,10 @@ export function isChildSession(session: { meta?: { parentSession?: unknown }; pa
   if (session.meta?.parentSession !== undefined && session.meta.parentSession !== null) return true
   if (session.parentSession !== undefined && session.parentSession !== null) return true
   if (session.origin === 'subagent') return true
+  // The descriptor sits before turn/start for the harness's own subagent tool, but after it for
+  // agents spawned by other plugins (dsh-mnemon task agents), so the whole log is scanned.
   for (const event of session.events) {
     if ((event as { type: string }).type === 'subagent/descriptor') return true
-    if (event.type === 'turn/start') break
   }
   return false
 }
