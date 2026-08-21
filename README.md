@@ -9,32 +9,29 @@ The scoring method is a port of [llm-as-a-verifier](https://github.com/llm-as-a-
 Two pictures. The first is the plugin inside one agent turn: where it reads, where it speaks, and what it costs. The second is the skill `graph-verified-coding`, the working method that decides when the agent calls the tools.
 
 ```mermaid
-flowchart LR
-    subgraph turn["One agent turn (dsh)"]
-        direction LR
-        S1["steps 1..n<br/>read, edit, bash, browser"] --> S40{"every 40 steps"}
-        S40 -->|"progress reading<br/>(low, 1 call, background)"| P["progress score<br/>A..T letter"]
-        P -->|"fell by 0.25 or<br/>stalled twice under 0.30"| A["assessment with findings<br/>(3 calls, agent waits)"]
-        A -->|"[dsh-verifier checkpoint]"| S1
-        S1 -->|"12 file edits without<br/>a verifier call"| D["reminder, no model call<br/>[dsh-verifier] N edits..."]
-        D --> S1
-        S1 -->|"agent calls<br/>verifier_assess / select / compare"| T["tool verdict<br/>score, pass, findings"]
-        T --> S1
-        S1 --> E{"turn stopping"}
+flowchart TD
+    subgraph turn["One agent turn in dsh"]
+        S["agent steps 1..n<br/>read, edit, bash, browser, tests"]
+        S -->|"every 40 steps"| P["progress reading<br/>low, one call, background<br/>A..T letter"]
+        P -->|"fell by 0.25, or stalled<br/>twice under 0.30"| A["assessment with findings<br/>three calls, the step waits"]
+        A -->|"[dsh-verifier checkpoint]<br/>into the same step"| S
+        S -->|"12 file edits without<br/>a verifier call"| D["reminder, no model call<br/>[dsh-verifier] 12 edits since..."]
+        D --> S
+        S -->|"the agent calls verifier_assess,<br/>verifier_select, verifier_compare"| T["tool verdict<br/>score, pass, findings"]
+        T --> S
+        S --> E{"turn stopping"}
     end
-    E -->|"gate: 3 calls at high,<br/>whole turn + goal objective"| G["score ≥ 0.6 → turn closes"]
-    E -->|"score < 0.6"| R["[dsh-verifier] findings<br/>one more round, then close"]
-    R --> S1
+    E -->|"gate: three calls at high over the<br/>whole turn plus the goal objective"| G{"score ≥ 0.6 ?"}
+    G -->|"yes"| C["turn closes"]
+    G -->|"no, once"| R["[dsh-verifier] findings<br/>the agent repairs, then the turn closes"]
+    R --> S
     subgraph backend["verifier backend"]
-        direction TB
-        V["same model, OpenAI-compatible<br/>streamed, logprobs, top 20"]
-        X["expectation over the<br/>letter distribution = score"]
-        V --> X
+        V["same model, OpenAI-compatible<br/>streamed, logprobs top 20<br/>score = expectation over the letter distribution"]
     end
-    A -. calls .-> V
-    P -. calls .-> V
-    T -. calls .-> V
-    E -. calls .-> V
+    P -.-> V
+    A -.-> V
+    T -.-> V
+    E -.-> V
 ```
 
 ```mermaid
