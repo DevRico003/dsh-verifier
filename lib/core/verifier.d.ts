@@ -39,6 +39,8 @@ export interface CallInfo {
     promptTokens?: number;
     completionTokens?: number;
     error?: string;
+    /** For a `fallback` reading: finish reason, reasoning size and the tail of the reply, so an unparseable verdict can be diagnosed from the log. */
+    detail?: string;
 }
 export interface PairwiseResult {
     rewardA: number;

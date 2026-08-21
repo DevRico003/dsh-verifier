@@ -28,6 +28,10 @@ export interface Completion {
         completionTokens?: number;
         cachedTokens?: number;
     };
+    /** `finish_reason` of the reply when the backend reports one. */
+    finishReason?: string;
+    /** Size of the reasoning the backend returned beside the answer (0 when none). */
+    reasoningChars?: number;
 }
 export interface VerifierBackend {
     /** Human-readable route description for logs. */

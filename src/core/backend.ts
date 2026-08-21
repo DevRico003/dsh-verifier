@@ -28,6 +28,10 @@ export interface Completion {
   text: string
   tokens?: TokenLogprob[]
   usage?: { promptTokens?: number; completionTokens?: number; cachedTokens?: number }
+  /** `finish_reason` of the reply when the backend reports one. */
+  finishReason?: string
+  /** Size of the reasoning the backend returned beside the answer (0 when none). */
+  reasoningChars?: number
 }
 
 export interface VerifierBackend {
@@ -250,6 +254,8 @@ export class OpenAICompatibleBackend implements VerifierBackend {
         text: parsed.text,
         ...parsed.tokens.length > 0 ? { tokens: parsed.tokens } : {},
         usage: parsed.usage,
+        ...parsed.finishReason !== undefined ? { finishReason: parsed.finishReason } : {},
+        reasoningChars: parsed.reasoningChars,
       }
     } finally {
       if (idleTimer !== undefined) clearTimeout(idleTimer)

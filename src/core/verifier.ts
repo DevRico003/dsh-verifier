@@ -4,7 +4,7 @@
  * the plugin wires a backend in.
  */
 
-import type { VerifierBackend } from './backend.js'
+import type { Completion, VerifierBackend } from './backend.js'
 import { ASSESS_TAG, buildAssessmentPrompt, buildPairwisePrompt, buildProgressPrompt, PAIRWISE_TAG_A, PAIRWISE_TAG_B, PROGRESS_TAG, type Criterion } from './prompts.js'
 import { pairwiseValue, progressValue } from './scale.js'
 import { analysisBefore, extractScore, NEUTRAL_SCORE, type ScoreSource } from './scoring.js'
@@ -48,8 +48,8 @@ export interface CallInfo {
   detail?: string
 }
 
-function fallbackDetail(completion: { text: string; finishReason?: string; reasoningChars: number; tokens: readonly unknown[] }): string {
-  return `finish=${completion.finishReason ?? '?'} reasoningChars=${completion.reasoningChars} tokens=${completion.tokens.length} tail=${JSON.stringify(completion.text.slice(-240))}`
+function fallbackDetail(completion: Completion): string {
+  return `finish=${completion.finishReason ?? '?'} reasoningChars=${completion.reasoningChars ?? 0} tokens=${completion.tokens?.length ?? 0} tail=${JSON.stringify(completion.text.slice(-240))}`
 }
 
 export interface PairwiseResult {
