@@ -143,7 +143,7 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
     warmPrefix: config.backend.warmPrefix,
     ...checkpoint.reasoningEffort !== '' ? { reasoningEffort: checkpoint.reasoningEffort } : {},
     onCall: config.verbose
-      ? (info: { kind: string; criterion: string; repeat: number; source: string; durationMs: number; error?: string }) => deps.log.info(`dsh-verifier-gate: checkpoint ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms${info.error !== undefined ? ` error=${info.error}` : ''}`)
+      ? (info: { kind: string; criterion: string; repeat: number; source: string; durationMs: number; error?: string }) => deps.log.info(`dsh-verifier-gate: checkpoint ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms${info.error !== undefined ? ` error=${info.error}` : ''}${info.detail !== undefined ? ` detail=${info.detail}` : ''}`)
       : undefined,
   }
   const started = Date.now()

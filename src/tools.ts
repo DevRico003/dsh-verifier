@@ -42,7 +42,8 @@ function baseOptions(deps: ToolDeps, criteriaName: string | undefined, evaluatio
       ? info => deps.log!.info(`dsh-verifier-gate: tool ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms`
         + (info.promptTokens !== undefined ? ` prompt=${info.promptTokens}` : '')
         + (info.cachedTokens !== undefined ? ` cached=${info.cachedTokens}` : '')
-        + (info.error !== undefined ? ` error=${info.error}` : ''))
+        + (info.error !== undefined ? ` error=${info.error}` : '')
+        + (info.detail !== undefined ? ` detail=${info.detail}` : ''))
       : undefined,
   }
 }

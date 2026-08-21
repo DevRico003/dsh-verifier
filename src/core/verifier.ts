@@ -44,6 +44,12 @@ export interface CallInfo {
   promptTokens?: number
   completionTokens?: number
   error?: string
+  /** For a `fallback` reading: finish reason, reasoning size and the tail of the reply, so an unparseable verdict can be diagnosed from the log. */
+  detail?: string
+}
+
+function fallbackDetail(completion: { text: string; finishReason?: string; reasoningChars: number; tokens: readonly unknown[] }): string {
+  return `finish=${completion.finishReason ?? '?'} reasoningChars=${completion.reasoningChars} tokens=${completion.tokens.length} tail=${JSON.stringify(completion.text.slice(-240))}`
 }
 
 export interface PairwiseResult {
@@ -154,6 +160,7 @@ async function scoreDirectedPair(
           repeat,
           durationMs: Date.now() - started,
           source,
+          ...source === 'fallback' ? { detail: fallbackDetail(completion) } : {},
           ...completion.usage?.cachedTokens !== undefined ? { cachedTokens: completion.usage.cachedTokens } : {},
           ...completion.usage?.promptTokens !== undefined ? { promptTokens: completion.usage.promptTokens } : {},
           ...completion.usage?.completionTokens !== undefined ? { completionTokens: completion.usage.completionTokens } : {},
@@ -259,6 +266,7 @@ export async function assess(problem: string, trajectory: string, options: Verif
             repeat,
             durationMs: Date.now() - started,
             source: extracted.source,
+            ...extracted.source === 'fallback' ? { detail: fallbackDetail(completion) } : {},
             ...completion.usage?.cachedTokens !== undefined ? { cachedTokens: completion.usage.cachedTokens } : {},
             ...completion.usage?.promptTokens !== undefined ? { promptTokens: completion.usage.promptTokens } : {},
             ...completion.usage?.completionTokens !== undefined ? { completionTokens: completion.usage.completionTokens } : {},
@@ -323,7 +331,7 @@ export async function progress(
           ...options.signal !== undefined ? { signal: options.signal } : {},
         })
         const extracted = extractScore(completion.text, completion.tokens, PROGRESS_TAG, progressValue)
-        options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: extracted.source })
+        options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: extracted.source, ...extracted.source === 'fallback' ? { detail: fallbackDetail(completion) } : {} })
         last = { score: extracted.score, source: extracted.source }
       } catch (error) {
         options.onCall?.({ kind: 'assess', criterion: 'progress', repeat, durationMs: Date.now() - started, source: 'error', error: String(error) })
