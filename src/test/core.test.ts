@@ -354,3 +354,25 @@ test('progress reading survives a quoted format in the reasoning and a bare-lett
   const bare = extractScore('S', undefined, 'c1', progressValue)
   assert.equal(bare.source, 'text'); assert.equal(bare.letter, 'S')
 })
+
+
+test('OpenAICompatibleBackend reads a streamed reply (reasoning + content + logprobs + usage)', async () => {
+  const chunks = [
+    'data: {"choices":[{"delta":{"reasoning":"thinking"},"logprobs":{"content":[{"token":"thinking","logprob":-0.1}]}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"<score>"},"logprobs":{"content":[{"token":"<score>","logprob":-0.1}]}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":" T"},"logprobs":{"content":[{"token":" T","logprob":-0.2,"top_logprobs":[{"token":" T","logprob":-0.2},{"token":" S","logprob":-1.8}]}]}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":" </score>"},"logprobs":{"content":[{"token":" </score>","logprob":-0.1}]},"finish_reason":"stop"}]}\n\n',
+    'data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":4,"prompt_tokens_details":{"cached_tokens":8}}}\n\ndata: [DONE]\n\n',
+  ]
+  const backend = new OpenAICompatibleBackend({
+    baseURL: 'http://example.invalid/v1', model: 'm', timeoutMs: 5000, idleTimeoutMs: 5000,
+    fetchImpl: (async () => new Response(new ReadableStream({ start(controller) { for (const c of chunks) controller.enqueue(new TextEncoder().encode(c)); controller.close() } }), { status: 200, headers: { 'content-type': 'text/event-stream' } })) as unknown as typeof fetch,
+  })
+  const completion = await backend.complete({ prompt: 'p', maxTokens: 10, temperature: 1, logprobs: true, topLogprobs: 20 })
+  assert.equal(completion.text, '<score> T </score>')
+  assert.equal(completion.tokens?.length, 4)
+  assert.deepEqual(completion.usage, { promptTokens: 10, completionTokens: 4, cachedTokens: 8 })
+  const score = extractScore(completion.text, completion.tokens, 'score', progressValue)
+  assert.equal(score.source, 'logprobs')
+  assert.ok(score.score > 0.9)
+})

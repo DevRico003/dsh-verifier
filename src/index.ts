@@ -78,6 +78,7 @@ function buildBackend(ctx: Context, config: Config): VerifierBackend {
     ...apiKey !== undefined ? { apiKey } : {},
     ...backend.reasoningEffort !== '' ? { reasoningEffort: backend.reasoningEffort } : {},
     timeoutMs: backend.timeoutMs,
+    idleTimeoutMs: backend.idleTimeoutMs,
   })
 }
 

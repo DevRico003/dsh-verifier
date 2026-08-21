@@ -58,9 +58,25 @@ export interface OpenAICompatibleOptions {
     reasoningEffort?: string;
     /** Extra request fields merged into the JSON body (e.g. `chat_template_kwargs`). */
     extraBody?: Record<string, unknown>;
+    /** Hard cap per call. */
     timeoutMs: number;
+    /** Abort when no token arrives for this long (streaming keeps the connection alive while the model thinks). */
+    idleTimeoutMs?: number;
     fetchImpl?: typeof fetch;
 }
+interface ParsedCompletion {
+    text: string;
+    tokens: TokenLogprob[];
+    finishReason?: string;
+    reasoningChars: number;
+    usage: {
+        promptTokens?: number;
+        completionTokens?: number;
+        cachedTokens?: number;
+    };
+}
+/** Parse an OpenAI-style SSE stream; `onChunk` runs for every chunk (the idle timer's heartbeat). */
+export declare function readEventStream(body: ReadableStream<Uint8Array>, onChunk: () => void): Promise<ParsedCompletion>;
 export declare class OpenAICompatibleBackend implements VerifierBackend {
     private readonly options;
     readonly label: string;
@@ -99,3 +115,4 @@ export declare class HarnessLlmBackend implements VerifierBackend {
     constructor(llm: HarnessLlmLike, options: HarnessLlmBackendOptions);
     complete(request: CompletionRequest): Promise<Completion>;
 }
+export {};

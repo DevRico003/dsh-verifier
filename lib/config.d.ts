@@ -14,10 +14,12 @@ export interface BackendConfig {
     provider: string;
     /** Environment variable / credential reference holding the API key for `openai-compatible`; empty = no auth header. */
     apiKeyEnv: string;
-    /** Verifier reasoning effort sent as `reasoning_effort`. `low` found the same defects as `high` in an A/B on this setup at a third of the time; `high` is the reference's setting on DeepSeek's hosted API; `none` is the one-shot reading; empty string sends nothing. */
+    /** Verifier reasoning effort sent as `reasoning_effort`. `high` is the reference's setting; with streaming and a generous cap it may take minutes per call but never breaks. `low` is about three times faster with close verdicts; `none` is the one-shot reading; empty string sends nothing. */
     reasoningEffort: string;
-    /** Per-call timeout. */
+    /** Hard cap per verifier call. Generous on purpose: thinking is never cut short, the idle timer catches a dead stream. */
     timeoutMs: number;
+    /** Abort a call when the stream delivers nothing for this long. */
+    idleTimeoutMs: number;
     /** Output cap per verifier call (analysis + score tags). */
     maxTokens: number;
     /** Sampling temperature (the reference uses 1.0 so the logprob distribution is informative). */

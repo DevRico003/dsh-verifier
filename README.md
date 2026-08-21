@@ -80,15 +80,16 @@ verifier:
     baseURL: http://YOUR_SPARK_HOST:8000/v1
     model: deepseek-v4-flash-0731
     apiKeyEnv: SPARK_API_KEY       # env var or credential reference; empty = no Authorization header
-    reasoningEffort: low           # thinking on; low matched high in an A/B here at a third of the time (see Cost)
-    maxTokens: 32768               # reasoning shares the budget; too small = no score tags
+    reasoningEffort: high          # the reference setting; low is ~3x faster with close verdicts, none is a one-shot reading
+    maxTokens: 65536               # reasoning shares the budget; room so a long think still ends in an answer
     temperature: 1.0               # the reference default; keeps the logprob distribution informative
     topLogprobs: 20
     concurrency: 4
     retriesOnFallback: 1
     warmPrefix: false              # true = first call per prompt prefix alone, then the rest (saves prefill, doubles wall-clock)
     toolReasoningEffort: ""       # effort for the verifier_* tools; empty = reasoningEffort
-    timeoutMs: 600000              # per verifier call; also lifts Node's 300 s fetch header timeout
+    timeoutMs: 3600000             # last-resort cap per call
+    idleTimeoutMs: 300000          # abort when the stream delivers nothing for this long
   gate:
     enabled: true
     threshold: 0.6
@@ -100,7 +101,7 @@ verifier:
     skipSubagents: true            # child agents are not gated; their parent turn is
     minSteps: 1
     feedbackMaxChars: 2500
-    timeoutMs: 900000
+    timeoutMs: 4200000
   select:
     evaluations: 2                 # for the tools; 2 or more cancels slot bias
     pivots: 1
@@ -123,7 +124,7 @@ verifier:
     maxSteers: 3                   # per turn
     gateDebtEdits: 12              # remind after this many file edits without a verifier_* call (0 = off)
     editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]
-    timeoutMs: 900000
+    timeoutMs: 3600000
   snapshot:
     enabled: true                  # the ui_snapshot tool
     channels: [chrome, chromium]   # tried in order; chrome = installed Google Chrome
@@ -152,7 +153,7 @@ Turn ends still get the full gate. A goal that runs in phases (one turn per phas
 
 One gate pass is `criteria × evaluations` verifier calls, three by default, fanned out together. `warmPrefix: true` runs the first call alone so the server caches the prompt prefix (task, trajectory, scale; the criterion sits at the tail) before the rest go out; that is the reference's 3.4× saving in uncached input tokens, worth it on a priced API or a slow prefill. On a local vLLM that prefills at over 10k tokens per second it only doubles the wall-clock of every gate, so it ships off.
 
-The verifier thinks. The reference used `reasoning_effort: high` with a 32k budget for its DeepSeek-V4-Flash self-verification numbers (best-of-3 86.5% against 79.4% pass@1 on Terminal-Bench 2.1) on DeepSeek's hosted API. On a local DGX Spark pair `high` is too slow to block an agent on: in an A/B on one trajectory with three planted defects (an edit after the last test run, a lint exit masked by a pipe, an untested final patch) `high` took 346 to 736 s per call and one call timed out, while `low` took 98 to 215 s and named every defect, with scores within 0.06 of `high`. So `low` is the default here; set `high` if you verify through a fast hosted endpoint. `reasoningEffort: none` brings a short turn down to 6 to 10 seconds but the verdict is a one-shot reading; use it for chat-heavy sessions.
+The verifier thinks at `high`, the reference's setting for its DeepSeek-V4-Flash numbers (best-of-3 86.5% against 79.4% pass@1 on Terminal-Bench 2.1), and it gets room: `maxTokens` 65536, no thinking budget, calls stream. On a local DGX Spark pair a `high` call over a long trajectory takes two to twelve minutes; an earlier build lost such calls to a 300 s transport timeout, which looked like a hang. Now every call is a streamed response: tokens arrive while the model thinks, so no header timeout fires, an idle timer (`idleTimeoutMs`) aborts only a stream that goes silent, and `timeoutMs` is a last-resort cap of an hour. A gate over a long turn may therefore take ten minutes; it will end with a verdict, and the agent's harness imposes no tool timeout on the verifier tools. If you want speed over the reference setting, `reasoningEffort: low` gave verdicts within 0.06 of `high` on an A/B here at about a third of the time; `none` is a one-shot reading for chat sessions.
 
 With thinking on, vLLM returns the reasoning tokens inside `logprobs.content` as well; the score reader walks the token stream and takes the letter after the last `<score>` tag, so that is handled. A reply that spends the whole budget on reasoning carries no answer and is reported as a failed call (retried once, then unscored), never as a 0.5.
 
