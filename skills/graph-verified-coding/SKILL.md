@@ -31,7 +31,7 @@ Five words carry the method. A **node** is one bounded unit of work with a **con
 
 7. **Report with evidence.** What was verified and how (commands, test counts, snapshot paths, every verifier call with score and `scoredCriteria`), what was not verified and why, the open findings. Done when a reader can reproduce every claim.
 
-Three messages come from the plugin itself. `[dsh-verifier]` after your turn is the end-of-turn gate: a failed gate, so repair, re-verify, answer. `[dsh-verifier checkpoint]` during your turn is a mid-turn reading of the trajectory so far with findings: act on the findings in the current node, then continue. `[dsh-verifier] N file edits since your last verifier call` is gate debt: gate the node now (proving command, then `verifier_assess`), then continue. A finding that is mistaken gets one sentence saying why.
+Three messages come from the plugin itself. `[dsh-verifier]` after your turn is the end-of-turn gate: a failed gate, so repair, re-verify, answer. `[dsh-verifier checkpoint]` during your turn is a mid-turn reading of the trajectory so far with findings, assessed on the state you are in right now (the step waited for it), so it is current: act on the findings in the current node, then continue. `[dsh-verifier] N file edits since your last verifier call` is gate debt: gate the node now (proving command, then `verifier_assess`), then continue. A finding that is mistaken gets one sentence saying why.
 
 ## Reference
 
@@ -48,7 +48,7 @@ Three messages come from the plugin itself. `[dsh-verifier]` after your turn is 
 
 **Reading a verdict.** `score` is the mean over criteria of an expectation over the verifier's letter distribution, so 0.72 means the verifier leans yes with doubt, 0.95 means it saw the proof. `source: logprobs` is the full reading, `text` a single sampled letter, and `scored: false` means that criterion produced no verdict. `findings` is the verifier's analysis and names what is missing, wrong or unverified; it is written to be acted on.
 
-**Cost.** The verifier thinks (effort high). One `verifier_assess` is three parallel calls, two to ten minutes on a long turn; it always ends with a verdict, so wait for it rather than calling again. `verifier_select` over three candidates is about thirty calls. Place gates where they pay: one per completed multi-file node, one per merge, one before the final answer. For N such nodes expect at least N + 1 calls; a long build with two calls means the node gates were skipped.
+**Cost.** The verifier thinks (effort high). One `verifier_assess` is three parallel calls, two to fifteen minutes on a long turn depending on server load; it always ends with a verdict, so wait for it rather than calling again. `verifier_select` over three candidates is about thirty calls. Place gates where they pay: one per completed multi-file node, one per merge, one before the final answer. For N such nodes expect at least N + 1 calls; a long build with two calls means the node gates were skipped.
 
 **Design rounds.** `ui_snapshot` before, `analyze_image` on each shot with a concrete question (contrast, spacing, hierarchy, clipped content, consistency with the design guidelines in use), change the code, `ui_snapshot` after with a `label` such as `round-2-after`, `analyze_image` again, keep both paths for the report. Two rounds minimum when the task names design quality; stop when a round yields no finding.
 
