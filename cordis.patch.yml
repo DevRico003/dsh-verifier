@@ -40,6 +40,8 @@
           criteriaMode: auto
           skipWhenAskingUser: true
           minSteps: 1
+          # A turn opened only by a subagent report or plugin notice is gated only with real work in it.
+          minToolCallsWithoutOwnTask: 8
           skipSubagents: true
           feedbackMaxChars: 2500
           timeoutMs: 4200000

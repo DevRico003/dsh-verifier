@@ -72,6 +72,10 @@ function looksLikeQuestionToUser(text: string): boolean {
 /** Decide whether a trajectory is eligible for the gate; returns a reason to skip or undefined. */
 export function skipReason(trajectory: Trajectory, config: Config['gate']): string | undefined {
   if (trajectory.task.trim() === '') return 'no user task in this turn'
+  // A turn opened only by a relay (a subagent report, a plugin notice) with little work in it
+  // is an acknowledgement, not a deliverable; judging it against the carried goal objective
+  // would fail it for everything the goal still lacks.
+  if (!trajectory.ownTask && trajectory.toolCalls < config.minToolCallsWithoutOwnTask) return `relay turn without own task (${trajectory.toolCalls} tool calls)`
   if (trajectory.finalText.trim() === '' && trajectory.toolCalls === 0) return 'empty turn'
   if (trajectory.steps < config.minSteps) return `fewer than ${config.minSteps} step(s)`
   if (trajectory.lastToolName !== undefined && config.handoffTools.includes(trajectory.lastToolName)) return `hand-off tool ${trajectory.lastToolName}`

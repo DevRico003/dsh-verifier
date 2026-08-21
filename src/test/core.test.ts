@@ -183,7 +183,7 @@ test('buildTrajectory serializes one turn and elides old steps', () => {
   assert.ok(!trajectory.trace.includes('other'))
   const tiny = buildTrajectory(events, 1, { maxStepChars: 2000, maxTotalChars: 60 })
   assert.ok(tiny.trace.startsWith('(1 earlier step(s) elided)'))
-  assert.equal(skipReason({ ...trajectory, finalText: 'Which file?' }, { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'general', criteriaMode: 'auto', skipWhenAskingUser: true, minSteps: 1, skipSubagents: true, handoffTools: ['ask_user'], feedbackMaxChars: 100, timeoutMs: 1000 }), 'final message asks the user a question')
+  assert.equal(skipReason({ ...trajectory, finalText: 'Which file?' }, { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'general', criteriaMode: 'auto', skipWhenAskingUser: true, minSteps: 1, minToolCallsWithoutOwnTask: 8, skipSubagents: true, handoffTools: ['ask_user'], feedbackMaxChars: 100, timeoutMs: 1000 }), 'final message asks the user a question')
   const feedback = renderFeedback({ score: 0.3, scoredCriteria: 1, perCriterion: [{ id: 'c', name: 'Correctness', score: 0.3, analysis: 'wrong sum', source: 'text', scored: true }] }, 0.6, 1, 1, 100)
   assert.ok(feedback.includes('wrong sum') && feedback.includes('0.30'))
 })
@@ -375,4 +375,26 @@ test('OpenAICompatibleBackend reads a streamed reply (reasoning + content + logp
   const score = extractScore(completion.text, completion.tokens, 'score', progressValue)
   assert.equal(score.source, 'logprobs')
   assert.ok(score.score > 0.9)
+})
+
+
+test('a relay-opened turn with little work is not gated; with real work it is', () => {
+  const base = { maxStepChars: 1000, maxTotalChars: 10000 }
+  const events = [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'user/message', data: { source: { kind: 'goal' }, content: [{ type: 'text', text: '<goal_round> Objective: build' }] } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [{ type: 'text', text: 'working' }] } } },
+    { type: 'turn/end', data: { turn: 1 } },
+    { type: 'turn/start', data: { turn: 2 } },
+    { type: 'user/message', data: { source: { kind: 'subagent-report', form: 'relay' }, content: [{ type: 'text', text: 'Background subagent x reported: done' }] } },
+    { type: 'assistant/message', data: { message: { role: 'assistant', content: [{ type: 'text', text: 'Thanks, already integrated.' }] } } },
+  ] as unknown as Parameters<typeof buildTrajectory>[0]
+  const t2 = buildTrajectory(events, 2, base)
+  assert.equal(t2.ownTask, false)
+  assert.ok(t2.task.startsWith('Goal objective'))
+  const gate = { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'general', criteriaMode: 'auto' as const, skipWhenAskingUser: true, minSteps: 1, minToolCallsWithoutOwnTask: 8, skipSubagents: true, handoffTools: [], feedbackMaxChars: 2500, timeoutMs: 1000 }
+  assert.ok(skipReason(t2, gate)?.startsWith('relay turn without own task'))
+  const t1 = buildTrajectory(events, 1, base)
+  assert.equal(t1.ownTask, true)
+  assert.equal(skipReason(t1, gate), undefined)
 })

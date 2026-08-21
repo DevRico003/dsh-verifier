@@ -18,6 +18,8 @@ export interface TrajectoryLimits {
 export interface Trajectory {
   /** Task text: the user's prompt(s) that opened this turn. */
   task: string
+  /** Whether this turn carries its own task message (user or goal round), as opposed to a carried-forward goal objective only. */
+  ownTask: boolean
   /** Serialized steps. */
   trace: string
   steps: number
@@ -176,6 +178,7 @@ function buildTurn(events: readonly SessionEvent[], turn: number, limits: Trajec
 
   return {
     task,
+    ownTask: taskParts.length > 0,
     firstTask,
     trace: trace + contextNote,
     steps: stepNumber,

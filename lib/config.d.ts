@@ -52,6 +52,8 @@ export interface GateConfig {
     skipWhenAskingUser: boolean;
     /** Skip turns shorter than this many agent steps (0 = verify everything). */
     minSteps: number;
+    /** A turn opened only by a relay (subagent report, plugin notice), not by the user or a goal round, is gated only when it made at least this many tool calls. */
+    minToolCallsWithoutOwnTask: number;
     /** Skip child agents (subagents / agent-team members, detected via `session.meta.parentSession`); the parent's turn is verified instead. */
     skipSubagents: boolean;
     /** Tool names that mark a turn as deliberately handed back to the user; such turns are never forced on. */

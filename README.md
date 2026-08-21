@@ -100,6 +100,7 @@ verifier:
     skipWhenAskingUser: true
     skipSubagents: true            # child agents are not gated; their parent turn is
     minSteps: 1
+    minToolCallsWithoutOwnTask: 8  # a turn opened only by a subagent report or notice is gated only with real work in it
     feedbackMaxChars: 2500
     timeoutMs: 4200000
   select:
@@ -147,7 +148,7 @@ An unattended coding run is often a single turn of several hundred steps, and an
 
 **Gate debt.** When the agent has made `gateDebtEdits` file edits since its last `verifier_*` call, it receives one reminder to gate the node (no model call). The `graph-verified-coding` skill asks for one `verifier_assess` per completed multi-file node; this is what catches an agent that forgot.
 
-Turn ends still get the full gate. A goal that runs in phases (one turn per phase) gets a gate per phase on top. A turn that opens with "Continue." (auto-continue after an interruption, a resumed goal round) holds little of the work, so the trajectory handed to the verifier prepends the previous turn (`trajectory.continuationTurns`); otherwise a gate right after a restart would see commands but no code.
+Turn ends still get the full gate. A goal that runs in phases (one turn per phase) gets a gate per phase on top. Some hosts open a new turn for every subagent report; such a turn usually holds an acknowledgement and nothing else, and judging it against the goal would fail it for everything the goal still lacks, so a turn without its own task message is gated only when it made at least `gate.minToolCallsWithoutOwnTask` tool calls. A turn that opens with "Continue." (auto-continue after an interruption, a resumed goal round) holds little of the work, so the trajectory handed to the verifier prepends the previous turn (`trajectory.continuationTurns`); otherwise a gate right after a restart would see commands but no code.
 
 ## Cost
 
