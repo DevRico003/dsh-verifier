@@ -4,6 +4,55 @@ An LLM-as-a-verifier plugin for [DeepSeek Harness](https://github.com/deepseek-a
 
 The scoring method is a port of [llm-as-a-verifier](https://github.com/llm-as-a-verifier/llm-as-a-verifier) by Kwok et al. (project site [llm-as-a-verifier.com](https://llm-as-a-verifier.com/), paper arXiv 2607.05391, MIT). That repo selects the best of N agent trajectories. This plugin takes the same math and wires it into a running harness.
 
+## How it fits together
+
+Two pictures. The first is the plugin inside one agent turn: where it reads, where it speaks, and what it costs. The second is the skill `graph-verified-coding`, the working method that decides when the agent calls the tools.
+
+```mermaid
+flowchart LR
+    subgraph turn["One agent turn (dsh)"]
+        direction LR
+        S1["steps 1..n<br/>read, edit, bash, browser"] --> S40{"every 40 steps"}
+        S40 -->|"progress reading<br/>(low, 1 call, background)"| P["progress score<br/>A..T letter"]
+        P -->|"fell by 0.25 or<br/>stalled twice under 0.30"| A["assessment with findings<br/>(3 calls, agent waits)"]
+        A -->|"[dsh-verifier checkpoint]"| S1
+        S1 -->|"12 file edits without<br/>a verifier call"| D["reminder, no model call<br/>[dsh-verifier] N edits..."]
+        D --> S1
+        S1 -->|"agent calls<br/>verifier_assess / select / compare"| T["tool verdict<br/>score, pass, findings"]
+        T --> S1
+        S1 --> E{"turn stopping"}
+    end
+    E -->|"gate: 3 calls at high,<br/>whole turn + goal objective"| G["score ≥ 0.6 → turn closes"]
+    E -->|"score < 0.6"| R["[dsh-verifier] findings<br/>one more round, then close"]
+    R --> S1
+    subgraph backend["verifier backend"]
+        direction TB
+        V["same model, OpenAI-compatible<br/>streamed, logprobs, top 20"]
+        X["expectation over the<br/>letter distribution = score"]
+        V --> X
+    end
+    A -. calls .-> V
+    P -. calls .-> V
+    T -. calls .-> V
+    E -. calls .-> V
+```
+
+```mermaid
+flowchart TD
+    C["1 Contract<br/>acceptance criteria with an observable artifact each"] --> K["2 Cut false edges<br/>nodes; parallel only where no output flows<br/>children write .graph/&lt;node&gt;.md"]
+    K --> W["3 Work node<br/>implement, run the proving command, keep the output"]
+    W --> G["4 Gate<br/>tests, lint, build<br/>ui_snapshot + analyze_image for anything rendered<br/>verifier_assess(criteria coding) with contract + evidence"]
+    G -->|"pass"| J{"competing candidates?"}
+    G -->|"fail"| Y["6 Cycle with a stop<br/>repair, re-gate, two rounds, then report what is open"]
+    Y --> G
+    J -->|"yes"| V["5 Join<br/>verifier_select / verifier_compare<br/>merge the winner, gate the merge"]
+    J -->|"no"| N{"more nodes?"}
+    V --> N
+    N -->|"yes"| W
+    N -->|"no"| R["7 Report with evidence<br/>commands, tests, snapshots, every verifier call with score"]
+    R --> Z["turn ends: the plugin gate scores the whole turn"]
+```
+
 ## Why a verifier
 
 The method comes from the llm-as-a-verifier authors. Their framework (source: [llm-as-a-verifier.com](https://llm-as-a-verifier.com/)): probability over the logits instead of a sampled token, a fine-grained scoring token, repetition, and decomposition into simpler criteria, aggregated as R(x, tau) = 1/(C K) sum over criteria, repeats and scale values of p(v | x, c, tau) phi(v).
