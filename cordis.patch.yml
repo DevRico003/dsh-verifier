@@ -78,6 +78,9 @@
           minRise: 0.05
           stallReadings: 2
           maxSteers: 3
+          # blocking: a triggered checkpoint is assessed while the agent waits at the next step boundary,
+          # so the findings describe the state the agent is in when it reads them.
+          deliver: blocking
           # Remind the agent to gate after this many file edits without a verifier_* call.
           gateDebtEdits: 12
           editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]

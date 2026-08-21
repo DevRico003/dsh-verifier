@@ -29,6 +29,9 @@ interface CheckpointState {
   stalls: number
   steers: number
   inFlight: boolean
+  /** A triggered checkpoint waiting to be assessed and delivered at the next step boundary. */
+  pending: { step: number; score: number; reason: string } | undefined
+  assessing: boolean
   debtNudgedAt: number | undefined
 }
 
@@ -75,7 +78,7 @@ export function installCheckpoint(ctx: Context, deps: CheckpointDeps): void {
     const previous = states.get(agent)
     const state: CheckpointState = previous !== undefined && previous.turn === turn
       ? previous
-      : { turn, lastCheckpointStep: 0, lastScore: undefined, stalls: 0, steers: 0, inFlight: false, debtNudgedAt: undefined }
+      : { turn, lastCheckpointStep: 0, lastScore: undefined, stalls: 0, steers: 0, inFlight: false, pending: undefined, assessing: false, debtNudgedAt: undefined }
     states.set(agent, state)
 
     // Gate debt: cheap, no model call.
@@ -85,6 +88,26 @@ export function installCheckpoint(ctx: Context, deps: CheckpointDeps): void {
         state.debtNudgedAt = debt.lastVerifierStep
         deps.log.info(`dsh-verifier: turn ${turn} step ${step} of ${agent.id}: ${debt.edits} edits since the last verifier call; nudging`)
         agent.steer(createUserMessage({ content: [{ type: 'text', text: renderDebtNudge(debt.edits) }], source: PLUGIN_SOURCE }))
+      }
+    }
+
+    // A triggered checkpoint is assessed and delivered HERE, before the step runs, so the
+    // agent does not move on while the verifier judges a state that is already history:
+    // the findings describe the state the agent is in when it reads them.
+    if (state.pending !== undefined && !state.assessing && checkpoint.deliver === 'blocking') {
+      const pending = state.pending
+      state.pending = undefined
+      state.assessing = true
+      try {
+        const text = await assessForSteer(agent, turn, pending, config, deps, signal)
+        if (text !== undefined) {
+          state.steers++
+          const message = createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE })
+          if (decision.kind === 'enter') decision.messages.push(message)
+          else agent.steer(message)
+        }
+      } finally {
+        state.assessing = false
       }
     }
 
@@ -135,30 +158,54 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
   } else if (reason === undefined) state.stalls = 0
   deps.log.info(`dsh-verifier: checkpoint turn ${turn} step ${step} of ${agent.id}: progress ${measured.score.toFixed(2)} (previous ${state.lastScore?.toFixed(2) ?? 'n/a'}, stalls ${state.stalls}, ${Date.now() - started}ms)${reason !== undefined ? `; steering: ${reason}` : ''}`)
   state.lastScore = measured.score
-  const idle = (): boolean => (agent.status as string) === 'idle'
   if (reason === undefined) return
   state.stalls = 0
+  if (config.checkpoint.deliver === 'blocking') {
+    // Hand over to the next step boundary, where the assessment runs while the agent waits.
+    state.pending = { step, score: measured.score, reason }
+    return
+  }
+  const idle = (): boolean => (agent.status as string) === 'idle'
   if (idle()) return
+  const text = await assessForSteer(agent, turn, { step, score: measured.score, reason }, config, deps, signal)
+  if (text === undefined || idle()) return
+  state.steers++
+  agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE }))
+}
+
+/** Assess the turn as it is now and render the checkpoint message; undefined when no verdict could be formed. */
+async function assessForSteer(agent: Agent, turn: number, pending: { step: number; score: number; reason: string }, config: Config, deps: CheckpointDeps, signal: AbortSignal): Promise<string | undefined> {
+  const checkpoint = config.checkpoint
+  const trajectory = buildTrajectory(agent.session.events, turn, config.trajectory)
+  if (trajectory.task.trim() === '') return undefined
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(checkpoint.timeoutMs)])
   const set = resolveCriteria(config.gate.criteriaMode === 'auto' ? (trajectory.toolCalls > 0 ? 'coding' : 'general') : config.gate.criteria)
   const options: VerifierOptions = {
-    ...base,
+    backend: deps.backend(),
     criteria: set.criteria,
     groundTruthNote: set.groundTruthNote,
     evaluations: 1,
+    concurrency: config.backend.concurrency,
+    maxTokens: config.backend.maxTokens,
+    temperature: config.backend.temperature,
+    topLogprobs: config.backend.topLogprobs,
+    signal: deadline,
     onError: 'tie',
     retriesOnFallback: config.backend.retriesOnFallback,
+    warmPrefix: config.backend.warmPrefix,
   }
+  const started = Date.now()
   let result: AssessResult
   try {
     result = await assess(trajectory.task, trajectory.trace, options)
   } catch (error) {
-    deps.log.warn(`dsh-verifier: checkpoint assessment at step ${step} of ${agent.id} failed: ${String(error)}`)
-    return
+    deps.log.warn(`dsh-verifier: checkpoint assessment (trigger at step ${pending.step}) of ${agent.id} failed: ${String(error)}`)
+    return undefined
   }
-  if (result.scoredCriteria === 0 || idle()) return
-  state.steers++
-  agent.steer(createUserMessage({
-    content: [{ type: 'text', text: renderCheckpoint(step, measured.score, reason, result, config.gate.threshold, config.gate.feedbackMaxChars) }],
-    source: PLUGIN_SOURCE,
-  }))
+  if (result.scoredCriteria === 0) {
+    deps.log.warn(`dsh-verifier: checkpoint assessment (trigger at step ${pending.step}) of ${agent.id} produced no verdict`)
+    return undefined
+  }
+  deps.log.info(`dsh-verifier: checkpoint steer for ${agent.id} (trigger step ${pending.step}, ${pending.reason}): assessed ${result.score.toFixed(2)} in ${Date.now() - started}ms, delivering`)
+  return renderCheckpoint(pending.step, pending.score, pending.reason, result, config.gate.threshold, config.gate.feedbackMaxChars)
 }
