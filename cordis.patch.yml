@@ -3,7 +3,7 @@
 # section in $DSH_HOME/settings.yaml; override there, no restart needed.
 - insert:
     - id: verifier
-      name: dsh-verifier
+      name: dsh-verifier-gate
       config:
         enabled: true
         backend:

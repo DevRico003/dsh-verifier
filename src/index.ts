@@ -1,11 +1,11 @@
 /**
- * dsh-verifier: LLM-as-a-Verifier for DeepSeek Harness.
+ * dsh-verifier-gate: LLM-as-a-Verifier for DeepSeek Harness.
  *
  * Port of the llm-as-a-verifier method (fine-grained 20-letter scale, reward =
  * expectation over the score-token logprobs, criteria decomposition × repeated
  * evaluation, probabilistic pivot tournament for best-of-N) as a harness
  * plugin: an automatic end-of-turn quality gate plus `verifier_*` tools.
- * @module dsh-verifier
+ * @module dsh-verifier-gate
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -30,7 +30,7 @@ export * from './core/backend.js'
 export { buildTrajectory } from './trajectory.js'
 export { renderFeedback, skipReason } from './gate.js'
 
-export const name = 'dsh-verifier'
+export const name = 'dsh-verifier-gate'
 export const inject = ['llm', 'tools']
 
 /** Settings namespace: a `verifier:` section in `$DSH_HOME/settings.yaml` overrides the composition entry without a restart. */
@@ -101,7 +101,7 @@ export function apply(ctx: Context, entry: Config): void {
         backend = buildBackend(ctx, resolved)
         backendFor = resolved
       } catch (error) {
-        ctx.logger.warn(`dsh-verifier: settings rejected, keeping previous backend: ${String(error)}`)
+        ctx.logger.warn(`dsh-verifier-gate: settings rejected, keeping previous backend: ${String(error)}`)
       }
     }
     return backendFor ?? entry
@@ -116,7 +116,7 @@ export function apply(ctx: Context, entry: Config): void {
     onChange: () => {
       const resolved = config()
       if (backend instanceof UnconfiguredBackend) ctx.logger.warn(backend.reason)
-      ctx.logger.info(`dsh-verifier: active: backend ${backend.label}, gate ${resolved.gate.enabled ? `on (threshold ${resolved.gate.threshold}, maxRounds ${resolved.gate.maxRounds})` : 'off'}, checkpoints ${resolved.checkpoint.enabled ? `every ${resolved.checkpoint.everySteps} steps` : 'off'}, tools ${resolved.tools ? 'on' : 'off'}`)
+      ctx.logger.info(`dsh-verifier-gate: active: backend ${backend.label}, gate ${resolved.gate.enabled ? `on (threshold ${resolved.gate.threshold}, maxRounds ${resolved.gate.maxRounds})` : 'off'}, checkpoints ${resolved.checkpoint.enabled ? `every ${resolved.checkpoint.everySteps} steps` : 'off'}, tools ${resolved.tools ? 'on' : 'off'}`)
     },
   })
 

@@ -1,11 +1,11 @@
 ---
 name: graph-verified-coding
-description: Coding with verifier gates, for the dsh-verifier plugin. Load for coding work that spans more than one file or step, has competing approaches, or runs unattended (goal, headless, subagents), and whenever the user says verify, gate, or best-of. Cuts the task into nodes with contracts, gates each node with evidence and verifier_assess, joins candidates with verifier_select, repairs in bounded cycles, reports with evidence.
+description: Coding with verifier gates, for the dsh-verifier-gate plugin. Load for coding work that spans more than one file or step, has competing approaches, or runs unattended (goal, headless, subagents), and whenever the user says verify, gate, or best-of. Cuts the task into nodes with contracts, gates each node with evidence and verifier_assess, joins candidates with verifier_select, repairs in bounded cycles, reports with evidence.
 ---
 
 # Graph-verified coding
 
-`dsh-verifier` gives you a second reader. `verifier_assess` scores one result against three criteria, `verifier_select` ranks candidates, `ui_snapshot` renders pages headless, a checkpoint scores the running turn every forty steps, and a gate at the end of every turn scores the whole turn and sends you back when it falls below the threshold. This skill is how to work so those calls change the outcome instead of decorating it.
+`dsh-verifier-gate` gives you a second reader. `verifier_assess` scores one result against three criteria, `verifier_select` ranks candidates, `ui_snapshot` renders pages headless, a checkpoint scores the running turn every forty steps, and a gate at the end of every turn scores the whole turn and sends you back when it falls below the threshold. This skill is how to work so those calls change the outcome instead of decorating it.
 
 Five words carry the method. A **node** is one bounded unit of work with a **contract**: input, output, the command that proves it. An **edge** exists only where the next node reads the previous node's output. A **gate** decides whether work continues. A **join** merges parallel branches. A **cycle** is WORK, VERIFY, REPAIR with a hard stop.
 
@@ -31,7 +31,7 @@ Five words carry the method. A **node** is one bounded unit of work with a **con
 
 7. **Report with evidence.** What was verified and how (commands, test counts, snapshot paths, every verifier call with score and `scoredCriteria`), what was not verified and why, the open findings. Done when a reader can reproduce every claim.
 
-Three messages come from the plugin itself. `[dsh-verifier]` after your turn is the end-of-turn gate: a failed gate, so repair, re-verify, answer. `[dsh-verifier checkpoint]` during your turn is a mid-turn reading of the trajectory so far with findings, assessed on the state you are in right now (the step waited for it), so it is current: act on the findings in the current node, then continue. `[dsh-verifier] N file edits since your last verifier call` is gate debt: gate the node now (proving command, then `verifier_assess`), then continue. A finding that is mistaken gets one sentence saying why.
+Three messages come from the plugin itself. `[dsh-verifier-gate]` after your turn is the end-of-turn gate: a failed gate, so repair, re-verify, answer. `[dsh-verifier-gate checkpoint]` during your turn is a mid-turn reading of the trajectory so far with findings, assessed on the state you are in right now (the step waited for it), so it is current: act on the findings in the current node, then continue. `[dsh-verifier-gate] N file edits since your last verifier call` is gate debt: gate the node now (proving command, then `verifier_assess`), then continue. A finding that is mistaken gets one sentence saying why.
 
 ## Reference
 

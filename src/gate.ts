@@ -18,7 +18,7 @@ import { assess, type AssessResult, type VerifierOptions } from './core/verifier
 import type { VerifierBackend } from './core/backend.js'
 import { buildTrajectory, isChildSession, type Trajectory } from './trajectory.js'
 
-export const PLUGIN_SOURCE: MessageSource = { kind: 'plugin', plugin: 'dsh-verifier' }
+export const PLUGIN_SOURCE: MessageSource = { kind: 'plugin', plugin: 'dsh-verifier-gate' }
 
 interface TurnState {
   turn: number
@@ -42,7 +42,7 @@ export interface GateDeps {
 export function renderFeedback(result: AssessResult, threshold: number, round: number, maxRounds: number, maxChars: number): string {
   const sorted = [...result.perCriterion].sort((a, b) => a.score - b.score)
   const lines: string[] = []
-  lines.push(`[dsh-verifier] Verification of your turn: ${result.score.toFixed(2)} / 1.00, pass threshold ${threshold.toFixed(2)}${maxRounds > 0 ? `, round ${round} of ${maxRounds}` : ''}.`)
+  lines.push(`[dsh-verifier-gate] Verification of your turn: ${result.score.toFixed(2)} / 1.00, pass threshold ${threshold.toFixed(2)}${maxRounds > 0 ? `, round ${round} of ${maxRounds}` : ''}.`)
   lines.push('Per criterion: ' + sorted.map(entry => `${entry.name} ${entry.scored ? entry.score.toFixed(2) : 'unscored'}`).join(', ') + '.')
   let budget = maxChars
   for (const entry of sorted) {
@@ -93,7 +93,7 @@ export function installGate(ctx: Context, deps: GateDeps): void {
     if (signal.aborted) return
     const gate = config.gate
     if (gate.skipSubagents && isChildAgent(agent)) {
-      deps.log.debug(`dsh-verifier: skipping child agent ${agent.id} (gate.skipSubagents)`)
+      deps.log.debug(`dsh-verifier-gate: skipping child agent ${agent.id} (gate.skipSubagents)`)
       return
     }
 
@@ -101,14 +101,14 @@ export function installGate(ctx: Context, deps: GateDeps): void {
     const current: TurnState = state !== undefined && state.turn === turn ? state : { turn, rounds: 0, lastScore: undefined }
     states.set(agent, current)
     if (current.rounds >= gate.maxRounds) {
-      deps.log.info(`dsh-verifier: turn ${turn} of ${agent.id} reached maxRounds=${gate.maxRounds}; closing (last score ${current.lastScore?.toFixed(2) ?? 'n/a'})`)
+      deps.log.info(`dsh-verifier-gate: turn ${turn} of ${agent.id} reached maxRounds=${gate.maxRounds}; closing (last score ${current.lastScore?.toFixed(2) ?? 'n/a'})`)
       return
     }
 
     const trajectory = buildTrajectory(agent.session.events, turn, config.trajectory)
     const skip = skipReason(trajectory, gate)
     if (skip !== undefined) {
-      deps.log.debug(`dsh-verifier: skipping turn ${turn} of ${agent.id}: ${skip}`)
+      deps.log.debug(`dsh-verifier-gate: skipping turn ${turn} of ${agent.id}: ${skip}`)
       return
     }
 
@@ -129,7 +129,7 @@ export function installGate(ctx: Context, deps: GateDeps): void {
       retriesOnFallback: config.backend.retriesOnFallback,
     warmPrefix: config.backend.warmPrefix,
       onCall: config.verbose
-        ? info => deps.log.info(`dsh-verifier: ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms`
+        ? info => deps.log.info(`dsh-verifier-gate: ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms`
           + (info.promptTokens !== undefined ? ` prompt=${info.promptTokens}` : '')
           + (info.cachedTokens !== undefined ? ` cached=${info.cachedTokens}` : '')
           + (info.error !== undefined ? ` error=${info.error}` : ''))
@@ -141,25 +141,25 @@ export function installGate(ctx: Context, deps: GateDeps): void {
     try {
       result = await assess(trajectory.task, trajectory.trace, options)
     } catch (error) {
-      deps.log.warn(`dsh-verifier: assessment failed for turn ${turn} of ${agent.id}: ${String(error)}`)
+      deps.log.warn(`dsh-verifier-gate: assessment failed for turn ${turn} of ${agent.id}: ${String(error)}`)
       return
     }
     if (deadline.aborted) {
-      deps.log.warn(`dsh-verifier: assessment of turn ${turn} timed out; closing unverified`)
+      deps.log.warn(`dsh-verifier-gate: assessment of turn ${turn} timed out; closing unverified`)
       return
     }
     const summary = result.perCriterion.map(entry => `${entry.id}=${entry.scored ? entry.score.toFixed(2) : 'unscored'}/${entry.source}`).join(' ')
     if (result.scoredCriteria === 0) {
-      deps.log.warn(`dsh-verifier: turn ${turn} of ${agent.id} produced no scorable verdict (${summary}); closing unverified`)
+      deps.log.warn(`dsh-verifier-gate: turn ${turn} of ${agent.id} produced no scorable verdict (${summary}); closing unverified`)
       return
     }
     current.lastScore = result.score
     if (result.score >= gate.threshold) {
-      deps.log.info(`dsh-verifier: turn ${turn} of ${agent.id} PASSED ${result.score.toFixed(2)} >= ${gate.threshold} (${summary}, ${Date.now() - started}ms, round ${current.rounds})`)
+      deps.log.info(`dsh-verifier-gate: turn ${turn} of ${agent.id} PASSED ${result.score.toFixed(2)} >= ${gate.threshold} (${summary}, ${Date.now() - started}ms, round ${current.rounds})`)
       return
     }
     current.rounds++
-    deps.log.info(`dsh-verifier: turn ${turn} of ${agent.id} BELOW threshold ${result.score.toFixed(2)} < ${gate.threshold} (${summary}, ${Date.now() - started}ms); steering round ${current.rounds}/${gate.maxRounds}`)
+    deps.log.info(`dsh-verifier-gate: turn ${turn} of ${agent.id} BELOW threshold ${result.score.toFixed(2)} < ${gate.threshold} (${summary}, ${Date.now() - started}ms); steering round ${current.rounds}/${gate.maxRounds}`)
     const text = renderFeedback(result, gate.threshold, current.rounds, gate.maxRounds, gate.feedbackMaxChars)
     agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE }))
   })

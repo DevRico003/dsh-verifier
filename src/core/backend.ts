@@ -57,7 +57,7 @@ export class UnconfiguredBackend implements VerifierBackend {
   readonly reason: string
   constructor(baseURL: string, host: string) {
     this.label = `${baseURL} (unconfigured)`
-    this.reason = `dsh-verifier: backend.baseURL still holds the placeholder "${host}"; set verifier.backend.baseURL (and model) in $DSH_HOME/settings.yaml to your OpenAI-compatible endpoint`
+    this.reason = `dsh-verifier-gate: backend.baseURL still holds the placeholder "${host}"; set verifier.backend.baseURL (and model) in $DSH_HOME/settings.yaml to your OpenAI-compatible endpoint`
   }
 
   complete(): Promise<Completion> {
@@ -114,7 +114,7 @@ function mapLogprobs(entries: { token: string; logprob: number; top_logprobs?: {
 
 function fromJson(payload: ChatCompletionResponse): ParsedCompletion {
   const choice = payload.choices?.[0]
-  if (choice === undefined) throw new Error('dsh-verifier: backend returned no choices')
+  if (choice === undefined) throw new Error('dsh-verifier-gate: backend returned no choices')
   return {
     text: choice.message?.content ?? '',
     tokens: mapLogprobs(choice.logprobs?.content),
@@ -154,7 +154,7 @@ export async function readEventStream(body: ReadableStream<Uint8Array>, onChunk:
     } catch {
       return
     }
-    if (chunk.error !== undefined) throw new Error(`dsh-verifier: backend stream error: ${chunk.error.message ?? 'unknown'}`)
+    if (chunk.error !== undefined) throw new Error(`dsh-verifier-gate: backend stream error: ${chunk.error.message ?? 'unknown'}`)
     const choice = chunk.choices?.[0]
     if (choice !== undefined) {
       if (choice.delta?.content) text += choice.delta.content
@@ -222,7 +222,7 @@ export class OpenAICompatibleBackend implements VerifierBackend {
     let idleTimer: ReturnType<typeof setTimeout> | undefined
     const armIdle = (): void => {
       if (idleTimer !== undefined) clearTimeout(idleTimer)
-      idleTimer = setTimeout(() => idle.abort(new Error(`dsh-verifier: backend ${this.label} sent nothing for ${idleMs} ms`)), idleMs)
+      idleTimer = setTimeout(() => idle.abort(new Error(`dsh-verifier-gate: backend ${this.label} sent nothing for ${idleMs} ms`)), idleMs)
     }
     armIdle()
     let response: Response
@@ -236,7 +236,7 @@ export class OpenAICompatibleBackend implements VerifierBackend {
       } as RequestInit)
       if (!response.ok) {
         const payload = await response.json().catch(() => ({})) as ChatCompletionResponse
-        throw new Error(`dsh-verifier: backend ${this.label} answered HTTP ${response.status}: ${payload.error?.message ?? 'unknown error'}`)
+        throw new Error(`dsh-verifier-gate: backend ${this.label} answered HTTP ${response.status}: ${payload.error?.message ?? 'unknown error'}`)
       }
       const contentType = response.headers.get('content-type') ?? ''
       const parsed = contentType.includes('text/event-stream') && response.body !== null
@@ -244,7 +244,7 @@ export class OpenAICompatibleBackend implements VerifierBackend {
         : fromJson(await response.json() as ChatCompletionResponse)
       if (parsed.text.trim() === '') {
         // With thinking on, a reply that ran out of tokens carries reasoning but no answer, so there is no score to read.
-        throw new Error(`dsh-verifier: backend ${this.label} returned no answer text (finish_reason=${parsed.finishReason ?? 'unknown'}, reasoning chars=${parsed.reasoningChars}); raise backend.maxTokens or lower backend.reasoningEffort`)
+        throw new Error(`dsh-verifier-gate: backend ${this.label} returned no answer text (finish_reason=${parsed.finishReason ?? 'unknown'}, reasoning chars=${parsed.reasoningChars}); raise backend.maxTokens or lower backend.reasoningEffort`)
       }
       return {
         text: parsed.text,

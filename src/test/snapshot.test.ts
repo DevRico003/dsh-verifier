@@ -22,7 +22,7 @@ test('takeSnapshots renders light and dark across viewports headless and reports
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : 0
-  const outDir = await mkdtemp(join(tmpdir(), 'dsh-verifier-snap-'))
+  const outDir = await mkdtemp(join(tmpdir(), 'dsh-verifier-gate-snap-'))
   try {
     let result
     try {

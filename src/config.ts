@@ -240,14 +240,14 @@ export const Config: z<Config> = z.object({
 /** Fail-loud checks beyond what the schema expresses. */
 export function validateConfig(config: Config): void {
   const { backend, gate, select } = config
-  if (gate.threshold < 0 || gate.threshold > 1) throw new Error(`dsh-verifier: gate.threshold must be within [0, 1], got ${gate.threshold}`)
-  if (!Number.isInteger(gate.maxRounds) || gate.maxRounds < 0) throw new Error(`dsh-verifier: gate.maxRounds must be an integer >= 0, got ${gate.maxRounds}`)
-  if (!Number.isInteger(gate.evaluations) || gate.evaluations < 1) throw new Error(`dsh-verifier: gate.evaluations must be an integer >= 1`)
-  if (!Number.isInteger(select.evaluations) || select.evaluations < 1) throw new Error(`dsh-verifier: select.evaluations must be an integer >= 1`)
-  if (!Number.isInteger(select.pivots) || select.pivots < 1) throw new Error(`dsh-verifier: select.pivots must be an integer >= 1`)
-  if (!Number.isInteger(backend.topLogprobs) || backend.topLogprobs < 1 || backend.topLogprobs > 20) throw new Error(`dsh-verifier: backend.topLogprobs must be an integer in [1, 20]`)
-  if (!Number.isInteger(backend.concurrency) || backend.concurrency < 1) throw new Error(`dsh-verifier: backend.concurrency must be an integer >= 1`)
-  if (config.checkpoint.threshold < 0 || config.checkpoint.threshold > 1) throw new Error(`dsh-verifier: checkpoint.threshold must be within [0, 1]`)
-  if (!Number.isInteger(config.checkpoint.everySteps) || config.checkpoint.everySteps < 1) throw new Error(`dsh-verifier: checkpoint.everySteps must be an integer >= 1`)
-  if (backend.kind === 'openai-compatible' && !/^https?:\/\//.test(backend.baseURL)) throw new Error(`dsh-verifier: backend.baseURL must be an http(s) URL, got "${backend.baseURL}"`)
+  if (gate.threshold < 0 || gate.threshold > 1) throw new Error(`dsh-verifier-gate: gate.threshold must be within [0, 1], got ${gate.threshold}`)
+  if (!Number.isInteger(gate.maxRounds) || gate.maxRounds < 0) throw new Error(`dsh-verifier-gate: gate.maxRounds must be an integer >= 0, got ${gate.maxRounds}`)
+  if (!Number.isInteger(gate.evaluations) || gate.evaluations < 1) throw new Error(`dsh-verifier-gate: gate.evaluations must be an integer >= 1`)
+  if (!Number.isInteger(select.evaluations) || select.evaluations < 1) throw new Error(`dsh-verifier-gate: select.evaluations must be an integer >= 1`)
+  if (!Number.isInteger(select.pivots) || select.pivots < 1) throw new Error(`dsh-verifier-gate: select.pivots must be an integer >= 1`)
+  if (!Number.isInteger(backend.topLogprobs) || backend.topLogprobs < 1 || backend.topLogprobs > 20) throw new Error(`dsh-verifier-gate: backend.topLogprobs must be an integer in [1, 20]`)
+  if (!Number.isInteger(backend.concurrency) || backend.concurrency < 1) throw new Error(`dsh-verifier-gate: backend.concurrency must be an integer >= 1`)
+  if (config.checkpoint.threshold < 0 || config.checkpoint.threshold > 1) throw new Error(`dsh-verifier-gate: checkpoint.threshold must be within [0, 1]`)
+  if (!Number.isInteger(config.checkpoint.everySteps) || config.checkpoint.everySteps < 1) throw new Error(`dsh-verifier-gate: checkpoint.everySteps must be an integer >= 1`)
+  if (backend.kind === 'openai-compatible' && !/^https?:\/\//.test(backend.baseURL)) throw new Error(`dsh-verifier-gate: backend.baseURL must be an http(s) URL, got "${backend.baseURL}"`)
 }

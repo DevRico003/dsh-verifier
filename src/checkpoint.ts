@@ -57,13 +57,13 @@ export function checkpointTrigger(score: number, previous: number | undefined, t
 
 /** The checkpoint message: the measured progress, then the assessment's findings. */
 export function renderCheckpoint(step: number, progressScore: number, reason: string, result: AssessResult, threshold: number, maxChars: number): string {
-  const head = `[dsh-verifier checkpoint] Step ${step}: the verifier scored the turn so far at ${progressScore.toFixed(2)} / 1.00 progress (${reason}). This is a mid-turn reading, not the end-of-turn gate.`
+  const head = `[dsh-verifier-gate checkpoint] Step ${step}: the verifier scored the turn so far at ${progressScore.toFixed(2)} / 1.00 progress (${reason}). This is a mid-turn reading, not the end-of-turn gate.`
   const body = renderFeedback(result, threshold, 0, 0, maxChars).split('\n').slice(2).join('\n')
   return `${head}\n${body}`
 }
 
 export function renderDebtNudge(edits: number): string {
-  return `[dsh-verifier] ${edits} file edits since your last verifier call. Per graph-verified-coding a node that changed more than one file is gated before the next one starts: run the proving command, then verifier_assess with criteria "coding", the node's contract as task and the observed evidence as answer. Continue after the gate.`
+  return `[dsh-verifier-gate] ${edits} file edits since your last verifier call. Per graph-verified-coding a node that changed more than one file is gated before the next one starts: run the proving command, then verifier_assess with criteria "coding", the node's contract as task and the observed evidence as answer. Continue after the gate.`
 }
 
 export function installCheckpoint(ctx: Context, deps: CheckpointDeps): void {
@@ -86,7 +86,7 @@ export function installCheckpoint(ctx: Context, deps: CheckpointDeps): void {
       const debt = verifierDebt(agent.session.events, turn, checkpoint.editTools)
       if (debt.edits >= checkpoint.gateDebtEdits && state.debtNudgedAt !== debt.lastVerifierStep) {
         state.debtNudgedAt = debt.lastVerifierStep
-        deps.log.info(`dsh-verifier: turn ${turn} step ${step} of ${agent.id}: ${debt.edits} edits since the last verifier call; nudging`)
+        deps.log.info(`dsh-verifier-gate: turn ${turn} step ${step} of ${agent.id}: ${debt.edits} edits since the last verifier call; nudging`)
         agent.steer(createUserMessage({ content: [{ type: 'text', text: renderDebtNudge(debt.edits) }], source: PLUGIN_SOURCE }))
       }
     }
@@ -136,7 +136,7 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
     warmPrefix: config.backend.warmPrefix,
     ...checkpoint.reasoningEffort !== '' ? { reasoningEffort: checkpoint.reasoningEffort } : {},
     onCall: config.verbose
-      ? (info: { kind: string; criterion: string; repeat: number; source: string; durationMs: number; error?: string }) => deps.log.info(`dsh-verifier: checkpoint ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms${info.error !== undefined ? ` error=${info.error}` : ''}`)
+      ? (info: { kind: string; criterion: string; repeat: number; source: string; durationMs: number; error?: string }) => deps.log.info(`dsh-verifier-gate: checkpoint ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms${info.error !== undefined ? ` error=${info.error}` : ''}`)
       : undefined,
   }
   const started = Date.now()
@@ -144,11 +144,11 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
   try {
     measured = await progress(trajectory.task, trajectory.trace, trajectory.steps, { ...base, evaluations: checkpoint.evaluations, retriesOnFallback: config.backend.retriesOnFallback })
   } catch (error) {
-    deps.log.warn(`dsh-verifier: checkpoint at step ${step} of ${agent.id} failed: ${String(error)}`)
+    deps.log.warn(`dsh-verifier-gate: checkpoint at step ${step} of ${agent.id} failed: ${String(error)}`)
     return
   }
   if (deadline.aborted || measured.scoredRepeats === 0) {
-    deps.log.warn(`dsh-verifier: checkpoint at step ${step} of ${agent.id} produced no verdict (${measured.sources.join(',')})`)
+    deps.log.warn(`dsh-verifier-gate: checkpoint at step ${step} of ${agent.id} produced no verdict (${measured.sources.join(',')})`)
     return
   }
   let reason = checkpointTrigger(measured.score, state.lastScore, checkpoint.threshold, checkpoint.drop, checkpoint.minRise)
@@ -157,7 +157,7 @@ async function runCheckpoint(agent: Agent, turn: number, step: number, state: Ch
     state.stalls++
     if (state.stalls < checkpoint.stallReadings) reason = undefined
   } else if (reason === undefined) state.stalls = 0
-  deps.log.info(`dsh-verifier: checkpoint turn ${turn} step ${step} of ${agent.id}: progress ${measured.score.toFixed(2)} (previous ${state.lastScore?.toFixed(2) ?? 'n/a'}, stalls ${state.stalls}, ${Date.now() - started}ms)${reason !== undefined ? `; steering: ${reason}` : ''}`)
+  deps.log.info(`dsh-verifier-gate: checkpoint turn ${turn} step ${step} of ${agent.id}: progress ${measured.score.toFixed(2)} (previous ${state.lastScore?.toFixed(2) ?? 'n/a'}, stalls ${state.stalls}, ${Date.now() - started}ms)${reason !== undefined ? `; steering: ${reason}` : ''}`)
   state.lastScore = measured.score
   if (reason === undefined) return
   state.stalls = 0
@@ -201,13 +201,13 @@ async function assessForSteer(agent: Agent, turn: number, pending: { step: numbe
   try {
     result = await assess(trajectory.task, trajectory.trace, options)
   } catch (error) {
-    deps.log.warn(`dsh-verifier: checkpoint assessment (trigger at step ${pending.step}) of ${agent.id} failed: ${String(error)}`)
+    deps.log.warn(`dsh-verifier-gate: checkpoint assessment (trigger at step ${pending.step}) of ${agent.id} failed: ${String(error)}`)
     return undefined
   }
   if (result.scoredCriteria === 0) {
-    deps.log.warn(`dsh-verifier: checkpoint assessment (trigger at step ${pending.step}) of ${agent.id} produced no verdict`)
+    deps.log.warn(`dsh-verifier-gate: checkpoint assessment (trigger at step ${pending.step}) of ${agent.id} produced no verdict`)
     return undefined
   }
-  deps.log.info(`dsh-verifier: checkpoint steer for ${agent.id} (trigger step ${pending.step}, ${pending.reason}): assessed ${result.score.toFixed(2)} in ${Date.now() - started}ms, delivering`)
+  deps.log.info(`dsh-verifier-gate: checkpoint steer for ${agent.id} (trigger step ${pending.step}, ${pending.reason}): assessed ${result.score.toFixed(2)} in ${Date.now() - started}ms, delivering`)
   return renderCheckpoint(pending.step, pending.score, pending.reason, result, config.gate.threshold, config.gate.feedbackMaxChars)
 }

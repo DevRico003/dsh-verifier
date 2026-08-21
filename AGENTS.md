@@ -1,4 +1,4 @@
-# For the agent installing dsh-verifier
+# For the agent installing dsh-verifier-gate
 
 You are adding this plugin to an existing DeepSeek Harness installation. Finish when the smoke tests in step 4 pass.
 
@@ -19,17 +19,17 @@ You are adding this plugin to an existing DeepSeek Harness installation. Finish 
 
 3. **Install the plugin and link the skill.** Run, per profile the human uses (`web`, `headless`, `desktop`):
    ```sh
-   dsh plugin --profile <p> add /absolute/path/to/dsh-verifier
+   dsh plugin --profile <p> add /absolute/path/to/dsh-verifier-gate
    ```
    Then link the skill so dsh can load it:
    ```sh
    mkdir -p $DSH_HOME/skills
-   ln -sfn /absolute/path/to/dsh-verifier/skills/graph-verified-coding $DSH_HOME/skills/graph-verified-coding
+   ln -sfn /absolute/path/to/dsh-verifier-gate/skills/graph-verified-coding $DSH_HOME/skills/graph-verified-coding
    ```
-   `lib/` is committed; no build is needed. Restart a running `dsh web` or DSH Desktop afterwards. Done when `dsh --profile <p> --dump-config` shows a `# == dsh-verifier` layer with the `verifier` row, and `$DSH_HOME/skills/graph-verified-coding/SKILL.md` resolves.
+   `lib/` is committed; no build is needed. Restart a running `dsh web` or DSH Desktop afterwards. Done when `dsh --profile <p> --dump-config` shows a `# == dsh-verifier-gate` layer with the `verifier` row, and `$DSH_HOME/skills/graph-verified-coding/SKILL.md` resolves.
 
 4. **Smoke tests.** Read the answers, do not infer them:
-   - `dsh --profile headless "Answer in one word: ok"` finishes; with `verifier: verbose: true` in settings the host log shows `dsh-verifier: ... PASSED` or `BELOW threshold`.
+   - `dsh --profile headless "Answer in one word: ok"` finishes; with `verifier: verbose: true` in settings the host log shows `dsh-verifier-gate: ... PASSED` or `BELOW threshold`.
    - `dsh --profile headless "Use verifier_select with task='What is 12*12?' and candidates ['144','124'] and return bestIndex."` answers 0.
    - `dsh --profile headless "Load the skill graph-verified-coding and reply only with the number of steps."` answers 7.
    - `dsh --profile headless "Call ui_snapshot with url https://example.com/ and reply only with the number of shots and the browser field."` answers 4 and a `headless=true` browser (needs Google Chrome or a Playwright Chromium on the machine).

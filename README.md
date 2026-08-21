@@ -1,4 +1,4 @@
-# dsh-verifier
+# dsh-verifier-gate
 
 An LLM-as-a-verifier plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). It adds a quality gate that runs at the end of every agent turn, plus three tools the agent can call to check its own work.
 
@@ -14,8 +14,8 @@ flowchart TD
         S["agent steps 1..n<br/>read, edit, bash, browser, tests"]
         S -->|"every 40 steps"| P["progress reading<br/>low, one call, background<br/>A..T letter"]
         P -->|"fell by 0.25, or stalled<br/>twice under 0.30"| A["assessment with findings<br/>three calls, the step waits"]
-        A -->|"[dsh-verifier checkpoint]<br/>into the same step"| S
-        S -->|"12 file edits without<br/>a verifier call"| D["reminder, no model call<br/>[dsh-verifier] 12 edits since..."]
+        A -->|"[dsh-verifier-gate checkpoint]<br/>into the same step"| S
+        S -->|"12 file edits without<br/>a verifier call"| D["reminder, no model call<br/>[dsh-verifier-gate] 12 edits since..."]
         D --> S
         S -->|"the agent calls verifier_assess,<br/>verifier_select, verifier_compare"| T["tool verdict<br/>score, pass, findings"]
         T --> S
@@ -23,7 +23,7 @@ flowchart TD
     end
     E -->|"gate: three calls at high over the<br/>whole turn plus the goal objective"| G{"score ≥ 0.6 ?"}
     G -->|"yes"| C["turn closes"]
-    G -->|"no, once"| R["[dsh-verifier] findings<br/>the agent repairs, then the turn closes"]
+    G -->|"no, once"| R["[dsh-verifier-gate] findings<br/>the agent repairs, then the turn closes"]
     R --> S
     subgraph backend["verifier backend"]
         V["same model, OpenAI-compatible<br/>streamed, logprobs top 20<br/>score = expectation over the letter distribution"]
@@ -67,7 +67,7 @@ The gate in this plugin is the cheaper cousin of that best-of-N selection: one t
 **The gate.** When an agent is about to end a turn, the plugin serializes the turn (the task, the assistant messages, every tool call and its observed output) and asks a verifier model to score it per criterion on a 20-letter scale. The score is not the sampled letter. It is the expectation over the logprob distribution of the score token, so the verdict is continuous in [0, 1]. If the mean falls below `gate.threshold`, the verifier's findings go back to the agent as a plugin message and the harness runs another step. The agent sees text like this:
 
 ```
-[dsh-verifier] Automatic verification of your last turn scored 0.28 / 1.00 (pass threshold 0.60). Round 1 of 1.
+[dsh-verifier-gate] Automatic verification of your last turn scored 0.28 / 1.00 (pass threshold 0.60). Round 1 of 1.
 Per-criterion rewards: Empirical verification & error signals=0.13, Specification adherence=0.21, Code quality & root cause=0.50.
 
 Verifier findings, Empirical verification & error signals (0.13):
@@ -107,10 +107,10 @@ Things the reference repo does not have: the turn gate (`src/gate.ts`), the tool
 ## Install
 
 ```sh
-git clone https://github.com/DevRico003/dsh-verifier
-dsh plugin --profile web add /path/to/dsh-verifier
-dsh plugin --profile headless add /path/to/dsh-verifier
-dsh plugin --profile desktop add /path/to/dsh-verifier    # DSH Desktop
+git clone https://github.com/DevRico003/dsh-verifier-gate
+dsh plugin --profile web add /path/to/dsh-verifier-gate
+dsh plugin --profile headless add /path/to/dsh-verifier-gate
+dsh plugin --profile desktop add /path/to/dsh-verifier-gate    # DSH Desktop
 ```
 
 `lib/` is committed, so no build step is needed to install. Restart `dsh web` or the desktop app afterwards.
@@ -192,7 +192,7 @@ verifier:
 
 An unattended coding run is often a single turn of several hundred steps, and an end-of-turn gate verifies that turn once, at the end. Two mechanisms make one turn verifiable while it runs, both hooked into `agent/pre-step`:
 
-**Progress checkpoints.** Every `checkpoint.everySteps` steps (from `minSteps` on) the turn so far is scored with the reference progress prompt, verbatim, one checkpoint (the current state), letter only, `evaluations` repeats. That is the reference's `ProgressTracker.update`. Checkpoints think at `checkpoint.reasoningEffort` (`low` by default): they run often and block the agent when they trigger, and `low` gave verdicts within 0.06 of `high` on this setup at a third of the time; the end-of-turn gate and the tools keep `backend.reasoningEffort`. The progress reading runs in the background; the agent keeps working. When a reading triggers, the assessment with findings runs at the next step boundary while the agent waits (`deliver: blocking`), so the findings describe the state the agent is in when it reads them instead of a state several minutes old; `background` keeps the old asynchronous steer. The first checkpoint sets the baseline (a long goal reads low early, by design). From the second on, a fall by `drop`, or `stallReadings` consecutive readings below `threshold` that did not rise by `minRise` (the reference's regression and plateau patterns), gets the turn assessed with findings, and the agent receives a `[dsh-verifier checkpoint]` message at its next step boundary, capped at `maxSteers` per turn. A run that keeps climbing costs one cheap call per checkpoint and no steer.
+**Progress checkpoints.** Every `checkpoint.everySteps` steps (from `minSteps` on) the turn so far is scored with the reference progress prompt, verbatim, one checkpoint (the current state), letter only, `evaluations` repeats. That is the reference's `ProgressTracker.update`. Checkpoints think at `checkpoint.reasoningEffort` (`low` by default): they run often and block the agent when they trigger, and `low` gave verdicts within 0.06 of `high` on this setup at a third of the time; the end-of-turn gate and the tools keep `backend.reasoningEffort`. The progress reading runs in the background; the agent keeps working. When a reading triggers, the assessment with findings runs at the next step boundary while the agent waits (`deliver: blocking`), so the findings describe the state the agent is in when it reads them instead of a state several minutes old; `background` keeps the old asynchronous steer. The first checkpoint sets the baseline (a long goal reads low early, by design). From the second on, a fall by `drop`, or `stallReadings` consecutive readings below `threshold` that did not rise by `minRise` (the reference's regression and plateau patterns), gets the turn assessed with findings, and the agent receives a `[dsh-verifier-gate checkpoint]` message at its next step boundary, capped at `maxSteers` per turn. A run that keeps climbing costs one cheap call per checkpoint and no steer.
 
 **Gate debt.** When the agent has made `gateDebtEdits` file edits since its last `verifier_*` call, it receives one reminder to gate the node (no model call). The `graph-verified-coding` skill asks for one `verifier_assess` per completed multi-file node; this is what catches an agent that forgot.
 
@@ -217,7 +217,7 @@ A verifier reply sometimes carries no parseable score tag. The plugin retries su
 `skills/graph-verified-coding/SKILL.md` is a dsh skill (also usable by Claude Code or Codex from `~/.agents/skills`) that tells the agent how to use the verifier inside a graph-engineered coding process. Seven steps, each with a done-condition: contract (acceptance criteria with observable artifacts), cut false edges (independent nodes in parallel, dependent ones in sequence), work node (keep the proving output), gate (tests, browser loop for rendered output, `verifier_assess` when evidence is ambiguous), join (`verifier_select` over competing candidates), cycle with a stop (repair and re-gate, bounded rounds), report with evidence. A reference block lists the tools and their cost so the agent places gates where they pay: before merges and before the final answer. Link it into a skill root dsh scans:
 
 ```sh
-ln -s /path/to/dsh-verifier/skills/graph-verified-coding ~/.dsh/skills/graph-verified-coding
+ln -s /path/to/dsh-verifier-gate/skills/graph-verified-coding ~/.dsh/skills/graph-verified-coding
 ```
 
 ## Development

@@ -111,7 +111,7 @@ export const CRITERIA_SET_NAMES = Object.keys(CRITERIA_SETS)
 /** Resolve a named set or a custom list; throws on an unknown name. */
 export function resolveCriteria(name: string): CriteriaSet {
   const set = CRITERIA_SETS[name]
-  if (set === undefined) throw new Error(`dsh-verifier: unknown criteria set "${name}" (known: ${CRITERIA_SET_NAMES.join(', ')})`)
+  if (set === undefined) throw new Error(`dsh-verifier-gate: unknown criteria set "${name}" (known: ${CRITERIA_SET_NAMES.join(', ')})`)
   return set
 }
 

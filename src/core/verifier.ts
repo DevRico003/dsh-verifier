@@ -191,7 +191,7 @@ export async function select(
   candidates: string[],
   options: VerifierOptions & { pivots: number; seed: number },
 ): Promise<SelectResult> {
-  if (candidates.length === 0) throw new Error('dsh-verifier: select needs at least one candidate')
+  if (candidates.length === 0) throw new Error('dsh-verifier-gate: select needs at least one candidate')
   const run = limiter(options.concurrency)
   const cache = new Map<string, Promise<PairwiseResult>>()
   const scorePair = async (a: number, b: number): Promise<readonly [number, number]> => {

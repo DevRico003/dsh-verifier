@@ -1,5 +1,5 @@
 {
-  "name": "dsh-verifier",
+  "name": "dsh-verifier-gate",
   "version": "0.1.0",
   "description": "LLM-as-a-Verifier plugin for DeepSeek Harness: fine-grained logprob-based scoring, pairwise pivot tournaments (best-of-N) and an automatic end-of-turn quality gate.",
   "type": "module",
@@ -68,8 +68,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DevRico003/dsh-verifier.git"
+    "url": "git+https://github.com/DevRico003/dsh-verifier-gate.git"
   },
-  "homepage": "https://github.com/DevRico003/dsh-verifier#readme",
+  "homepage": "https://github.com/DevRico003/dsh-verifier-gate#readme",
   "author": "Enrico Carteciano (DevRico003)"
 }
