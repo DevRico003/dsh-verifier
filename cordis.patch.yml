@@ -51,7 +51,11 @@
           feedbackMaxChars: 2500
           timeoutMs: 4200000
         select:
-          evaluations: 2
+          # One directed comparison per pair and criterion. Measured on the Spark pair: three
+          # candidates are 5 pairs x 3 criteria, and with 2 repeats (30 calls at low) a select
+          # took 12 minutes because the calls are generation-bound and share the GPUs; with 1
+          # repeat about 6. Set 2 to cancel slot bias by swapping A/B.
+          evaluations: 1
           pivots: 1
           seed: 0
           criteria: general

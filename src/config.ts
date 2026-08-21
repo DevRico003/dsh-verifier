@@ -187,7 +187,7 @@ export const GateConfig: z<GateConfig> = z.object({
 })
 
 export const SelectConfig: z<SelectConfig> = z.object({
-  evaluations: z.number().default(2),
+  evaluations: z.number().default(1),
   pivots: z.number().default(1),
   seed: z.number().default(0),
   criteria: z.string().default('general'),
