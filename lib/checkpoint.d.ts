@@ -33,5 +33,5 @@ export interface CheckpointDeps {
 export declare function checkpointTrigger(score: number, previous: number | undefined, threshold: number, drop: number, minRise: number): string | undefined;
 /** The checkpoint message: the measured progress, then the assessment's findings. */
 export declare function renderCheckpoint(step: number, progressScore: number, reason: string, result: AssessResult, threshold: number, maxChars: number): string;
-export declare function renderDebtNudge(edits: number): string;
+export declare function renderDebtNudge(edits: number, repeat?: number): string;
 export declare function installCheckpoint(ctx: Context, deps: CheckpointDeps): void;
