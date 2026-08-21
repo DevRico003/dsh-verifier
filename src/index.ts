@@ -140,6 +140,6 @@ export function apply(ctx: Context, entry: Config): void {
     },
   })
 
-  if (entry.tools) installTools(ctx, { config, backend: getBackend })
+  if (entry.tools) installTools(ctx, { config, backend: getBackend, log: { info: message => ctx.logger.info(message) } })
   if (entry.tools && entry.snapshot.enabled) installSnapshotTool(ctx, config)
 }

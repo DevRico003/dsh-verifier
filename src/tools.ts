@@ -17,6 +17,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 export interface ToolDeps {
   config: () => Config
   backend: () => VerifierBackend
+  /** Optional logger; with `verbose` every verifier call of a tool is logged like the gate's. */
+  log?: { info: (message: string) => void }
 }
 
 function baseOptions(deps: ToolDeps, criteriaName: string | undefined, evaluations: number, signal: AbortSignal): VerifierOptions {
@@ -36,6 +38,12 @@ function baseOptions(deps: ToolDeps, criteriaName: string | undefined, evaluatio
     retriesOnFallback: config.backend.retriesOnFallback,
     warmPrefix: config.backend.warmPrefix,
     ...config.backend.toolReasoningEffort !== '' ? { reasoningEffort: config.backend.toolReasoningEffort } : {},
+    onCall: config.verbose && deps.log !== undefined
+      ? info => deps.log!.info(`dsh-verifier-gate: tool ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms`
+        + (info.promptTokens !== undefined ? ` prompt=${info.promptTokens}` : '')
+        + (info.cachedTokens !== undefined ? ` cached=${info.cachedTokens}` : '')
+        + (info.error !== undefined ? ` error=${info.error}` : ''))
+      : undefined,
   }
 }
 
