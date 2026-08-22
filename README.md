@@ -60,10 +60,10 @@ The gate in this plugin is the cheaper cousin of that best-of-N selection: one t
 **The gate.** When an agent is about to end a turn, the plugin serializes the turn (the task, the assistant messages, every tool call and its observed output) and asks a verifier model to score it per criterion on a 20-letter scale. The score is not the sampled letter. It is the expectation over the logprob distribution of the score token, so the verdict is continuous in [0, 1]. If the mean falls below `gate.threshold`, the verifier's findings go back to the agent as a plugin message and the harness runs another step. The agent sees text like this:
 
 ```
-[dsh-verifier-gate] Automatic verification of your last turn scored 0.28 / 1.00 (pass threshold 0.60). Round 1 of 1.
-Per-criterion rewards: Empirical verification & error signals=0.13, Specification adherence=0.21, Code quality & root cause=0.50.
+[dsh-verifier-gate] Verification of your turn: 0.28 / 1.00, pass threshold 0.60, round 1 of 1.
+Per criterion: Empirical Verification 0.13, Specification Adherence 0.21, Code Quality 0.50.
 
-Verifier findings, Empirical verification & error signals (0.13):
+Empirical Verification (0.13):
 The agent launched three background subagents ... There is zero observed verification in the trajectory: no npm test run, no curl of the service endpoints, no screenshot ...
 ```
 
