@@ -22,7 +22,6 @@ export declare function resolveCriteria(name: string): CriteriaSet;
 export declare const PAIRWISE_TAG_A = "score_A";
 export declare const PAIRWISE_TAG_B = "score_B";
 export declare const ASSESS_TAG = "score";
-export declare const PROGRESS_TAG = "c1";
 /** Pairwise comparison prompt, verbatim structure of the reference `build_prompt`. */
 export declare function buildPairwisePrompt(problem: string, traceA: string, traceB: string, criterion: Criterion, groundTruthNote: string): string;
 /**
@@ -30,10 +29,3 @@ export declare function buildPairwisePrompt(problem: string, traceA: string, tra
  * to one checkpoint (the final state), scored on one criterion.
  */
 export declare function buildAssessmentPrompt(problem: string, trajectory: string, criterion: Criterion, groundTruthNote: string): string;
-/**
- * Progress prompt, verbatim from the reference `build_progress_prompt`, with
- * one checkpoint: the state right after the last step. Used by the mid-turn
- * checkpoint; it asks for the letter only, so it is cheap and calibrated the
- * way the reference's progress curves are.
- */
-export declare function buildProgressPrompt(problem: string, trajectory: string, nSteps: number): string;

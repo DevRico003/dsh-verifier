@@ -13,12 +13,18 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type { Config } from './config.js'
-import { resolveCriteria } from './core/prompts.js'
-import { assess, type AssessResult, type VerifierOptions } from './core/verifier.js'
+import { resolveCriteria, type CriteriaSet } from './core/prompts.js'
+import { assess, type AssessResult, type CallInfo, type VerifierOptions } from './core/verifier.js'
 import type { VerifierBackend } from './core/backend.js'
 import { buildTrajectory, isChildSession, type Trajectory } from './trajectory.js'
 
 export const PLUGIN_SOURCE: MessageSource = { kind: 'plugin', plugin: 'dsh-verifier-gate' }
+
+export interface Log {
+  info: (message: string) => void
+  warn: (message: string) => void
+  debug: (message: string) => void
+}
 
 interface TurnState {
   turn: number
@@ -31,18 +37,47 @@ export interface GateDeps {
   config: () => Config
   /** Current backend (rebuilt on settings change). */
   backend: () => VerifierBackend
-  log: {
-    info: (message: string) => void
-    warn: (message: string) => void
-    debug: (message: string) => void
+  log: Log
+}
+
+/** Criteria set for a turn: `auto` reads `coding` when the turn used tools, `general` otherwise. */
+export function criteriaFor(name: string, toolCalls: number): CriteriaSet {
+  return resolveCriteria(name === 'auto' ? (toolCalls > 0 ? 'coding' : 'general') : name)
+}
+
+/** One log line per verifier call (`verbose: true`): kind, criterion, repeat, score source, duration, token counts, error or fallback detail. */
+export function callLogger(log: Log, prefix: string): (info: CallInfo) => void {
+  return info => log.info(`dsh-verifier-gate: ${prefix} ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms`
+    + (info.promptTokens !== undefined ? ` prompt=${info.promptTokens}` : '')
+    + (info.cachedTokens !== undefined ? ` cached=${info.cachedTokens}` : '')
+    + (info.error !== undefined ? ` error=${info.error}` : '')
+    + (info.detail !== undefined ? ` detail=${info.detail}` : ''))
+}
+
+/** The verifier options every caller shares: backend, sampling, concurrency, retries, logging. */
+export function baseVerifierOptions(config: Config, backend: VerifierBackend, set: CriteriaSet, evaluations: number, signal: AbortSignal, log: Log, prefix: string): VerifierOptions {
+  return {
+    backend,
+    criteria: set.criteria,
+    groundTruthNote: set.groundTruthNote,
+    evaluations,
+    concurrency: config.backend.concurrency,
+    maxTokens: config.backend.maxTokens,
+    temperature: config.backend.temperature,
+    topLogprobs: config.backend.topLogprobs,
+    signal,
+    onError: 'tie',
+    retriesOnFallback: config.backend.retriesOnFallback,
+    warmPrefix: config.backend.warmPrefix,
+    ...config.verbose ? { onCall: callLogger(log, prefix) } : {},
   }
 }
 
-/** Render the steering feedback the agent receives. `round`/`maxRounds` of 0 renders without the round line (checkpoint use). */
+/** Render the steering feedback the agent receives. */
 export function renderFeedback(result: AssessResult, threshold: number, round: number, maxRounds: number, maxChars: number): string {
   const sorted = [...result.perCriterion].sort((a, b) => a.score - b.score)
   const lines: string[] = []
-  lines.push(`[dsh-verifier-gate] Verification of your turn: ${result.score.toFixed(2)} / 1.00, pass threshold ${threshold.toFixed(2)}${maxRounds > 0 ? `, round ${round} of ${maxRounds}` : ''}.`)
+  lines.push(`[dsh-verifier-gate] Verification of your turn: ${result.score.toFixed(2)} / 1.00, pass threshold ${threshold.toFixed(2)}, round ${round} of ${maxRounds}.`)
   lines.push('Per criterion: ' + sorted.map(entry => `${entry.name} ${entry.scored ? entry.score.toFixed(2) : 'unscored'}`).join(', ') + '.')
   let budget = maxChars
   for (const entry of sorted) {
@@ -77,7 +112,6 @@ export function skipReason(trajectory: Trajectory, config: Config['gate']): stri
   // would fail it for everything the goal still lacks.
   if (!trajectory.ownTask && trajectory.toolCalls < config.minToolCallsWithoutOwnTask) return `relay turn without own task (${trajectory.toolCalls} tool calls)`
   if (trajectory.finalText.trim() === '' && trajectory.toolCalls === 0) return 'empty turn'
-  if (trajectory.steps < config.minSteps) return `fewer than ${config.minSteps} step(s)`
   if (trajectory.lastToolName !== undefined && config.handoffTools.includes(trajectory.lastToolName)) return `hand-off tool ${trajectory.lastToolName}`
   if (config.skipWhenAskingUser && looksLikeQuestionToUser(trajectory.finalText)) return 'final message asks the user a question'
   return undefined
@@ -112,30 +146,8 @@ export function installGate(ctx: Context, deps: GateDeps): void {
       return
     }
 
-    const setName = gate.criteriaMode === 'auto' ? (trajectory.toolCalls > 0 ? 'coding' : 'general') : gate.criteria
-    const criteria = resolveCriteria(gate.criteriaMode === 'auto' && gate.criteria !== 'general' && gate.criteria !== 'coding' ? gate.criteria : setName)
     const deadline = AbortSignal.any([signal, AbortSignal.timeout(gate.timeoutMs)])
-    const options: VerifierOptions = {
-      backend: deps.backend(),
-      criteria: criteria.criteria,
-      groundTruthNote: criteria.groundTruthNote,
-      evaluations: gate.evaluations,
-      concurrency: config.backend.concurrency,
-      maxTokens: config.backend.maxTokens,
-      temperature: config.backend.temperature,
-      topLogprobs: config.backend.topLogprobs,
-      signal: deadline,
-      onError: 'tie',
-      retriesOnFallback: config.backend.retriesOnFallback,
-    warmPrefix: config.backend.warmPrefix,
-      onCall: config.verbose
-        ? info => deps.log.info(`dsh-verifier-gate: ${info.kind} ${info.criterion}#${info.repeat} ${info.source} ${info.durationMs}ms`
-          + (info.promptTokens !== undefined ? ` prompt=${info.promptTokens}` : '')
-          + (info.cachedTokens !== undefined ? ` cached=${info.cachedTokens}` : '')
-          + (info.error !== undefined ? ` error=${info.error}` : '')
-          + (info.detail !== undefined ? ` detail=${info.detail}` : ''))
-        : undefined,
-    }
+    const options = baseVerifierOptions(config, deps.backend(), criteriaFor(gate.criteria, trajectory.toolCalls), gate.evaluations, deadline, deps.log, 'gate')
 
     const started = Date.now()
     let result: AssessResult

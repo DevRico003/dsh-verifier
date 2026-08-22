@@ -4,10 +4,9 @@ import { extractScore, parseLiteralLetter, parseBareLetter, analysisBefore } fro
 import { pairwiseValue, progressValue, normalizeExpected, GRANULARITY } from '../core/scale.js'
 import { bradleyTerry, ringCycle, pivotRoundPairs, pivotTournament, mulberry32, Accumulator, selectPivots } from '../core/tournament.js'
 import { buildPairwisePrompt, buildAssessmentPrompt, resolveCriteria } from '../core/prompts.js'
-import { assess, compare, select, progress } from '../core/verifier.js'
+import { assess, compare, select } from '../core/verifier.js'
 import { OpenAICompatibleBackend, UnconfiguredBackend, placeholderHost, type VerifierBackend, type CompletionRequest, type Completion } from '../core/backend.js'
-import { buildTrajectory, verifierDebt, isChildSession, elideMiddle } from '../trajectory.js'
-import { checkpointTrigger, renderDebtNudge } from '../checkpoint.js'
+import { buildTrajectory, isChildSession, elideMiddle } from '../trajectory.js'
 import { renderFeedback, skipReason } from '../gate.js'
 
 test('scale values and normalization', () => {
@@ -185,7 +184,7 @@ test('buildTrajectory serializes one turn and elides old steps', () => {
   // two steps, a cap that holds neither head nor both: the most recent step is kept, the middle marker names the cut
   assert.ok(tiny.trace.includes('middle step(s) elided'), tiny.trace)
   assert.ok(tiny.trace.includes('a.txt') || tiny.trace.includes('truncated'))
-  assert.equal(skipReason({ ...trajectory, finalText: 'Which file?' }, { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'general', criteriaMode: 'auto', skipWhenAskingUser: true, minSteps: 1, minToolCallsWithoutOwnTask: 8, skipSubagents: true, handoffTools: ['ask_user'], feedbackMaxChars: 100, timeoutMs: 1000 }), 'final message asks the user a question')
+  assert.equal(skipReason({ ...trajectory, finalText: 'Which file?' }, { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'auto', skipWhenAskingUser: true, minToolCallsWithoutOwnTask: 8, skipSubagents: true, handoffTools: ['ask_user'], feedbackMaxChars: 100, timeoutMs: 1000 }), 'final message asks the user a question')
   const feedback = renderFeedback({ score: 0.3, scoredCriteria: 1, perCriterion: [{ id: 'c', name: 'Correctness', score: 0.3, analysis: 'wrong sum', source: 'text', scored: true }] }, 0.6, 1, 1, 100)
   assert.ok(feedback.includes('wrong sum') && feedback.includes('0.30'))
 })
@@ -246,36 +245,6 @@ test('OpenAICompatibleBackend fails loud when the reply has reasoning but no ans
     fetchImpl: (async () => new Response(JSON.stringify({ choices: [{ message: { content: null, reasoning: 'x'.repeat(50) }, finish_reason: 'length' }] }), { status: 200 })) as typeof fetch,
   })
   await assert.rejects(() => backend.complete({ prompt: 'p', maxTokens: 10, temperature: 1, logprobs: true, topLogprobs: 20 }), /no answer text.*finish_reason=length/)
-})
-
-test('progress(): reference progress prompt, one checkpoint, letter read from the c1 tag', async () => {
-  const seen: string[] = []
-  const backend = fakeBackend((prompt) => { seen.push(prompt); return '<c1>R</c1>' })
-  const result = await progress('task', '--- Agent Step 1 ---\n[Output] ok', 1, { backend, evaluations: 2, concurrency: 2, maxTokens: 50, temperature: 1, topLogprobs: 20 })
-  assert.equal(result.scoredRepeats, 2)
-  assert.ok(Math.abs(result.score - 17 / 19) < 1e-9, String(result.score))
-  assert.ok(seen[0]!.includes('You will score the trajectory at 1 CHECKPOINTS'))
-  assert.ok(seen[0]!.includes('Checkpoint 1 = state right after Agent Step 1'))
-  assert.ok(seen[0]!.includes('Trust observed output — NOT the agent\'s narration.'))
-})
-
-test('checkpointTrigger and verifierDebt', () => {
-  assert.equal(checkpointTrigger(0.2, undefined, 0.3, 0.25, 0.05), undefined, 'first checkpoint is the baseline')
-  assert.equal(checkpointTrigger(0.5, 0.8, 0.3, 0.25, 0.05)?.startsWith('progress fell'), true)
-  assert.equal(checkpointTrigger(0.2, 0.18, 0.3, 0.25, 0.05)?.includes('stalled'), true)
-  assert.equal(checkpointTrigger(0.28, 0.16, 0.3, 0.25, 0.05), undefined, 'rising counts as progress')
-  assert.equal(checkpointTrigger(0.6, 0.7, 0.3, 0.25, 0.05), undefined)
-  const call = (name: string): { type: 'tool-call'; id: string; name: string; arguments: string } => ({ type: 'tool-call', id: name, name, arguments: '{}' })
-  const events = [
-    { type: 'turn/start', data: { turn: 1 } },
-    { type: 'assistant/message', data: { message: { role: 'assistant', content: [call('write'), call('edit')] } } },
-    { type: 'assistant/message', data: { message: { role: 'assistant', content: [call('verifier_assess')] } } },
-    { type: 'assistant/message', data: { message: { role: 'assistant', content: [call('edit'), call('bash'), call('edit')] } } },
-  ] as unknown as Parameters<typeof verifierDebt>[0]
-  const debt = verifierDebt(events, 1, ['write', 'edit'])
-  assert.deepEqual(debt, { edits: 2, lastVerifierStep: 2 })
-  const nudge = renderDebtNudge(12)
-  assert.ok(nudge.includes('verifier_assess'))
 })
 
 test('criteria sets carry the reference wording', () => {
@@ -340,7 +309,7 @@ test('OpenAICompatibleBackend sends the per-request reasoning effort over the ba
 })
 
 
-test('progress reading survives a quoted format in the reasoning and a bare-letter reply', () => {
+test('extractScore survives a quoted format in the reasoning and a bare-letter reply', () => {
   const mk = (token: string, alts: [string, number][] = []): { token: string; logprob: number; topLogprobs: { token: string; logprob: number }[] } =>
     ({ token, logprob: Math.log(0.9), topLogprobs: alts.map(([t, p]) => ({ token: t, logprob: Math.log(p) })) })
   // Reasoning quotes "<c1>LETTER</c1>" AFTER the real verdict? No: the verdict comes last in content, but the
@@ -396,7 +365,7 @@ test('a relay-opened turn with little work is not gated; with real work it is', 
   const t2 = buildTrajectory(events, 2, base)
   assert.equal(t2.ownTask, false)
   assert.ok(t2.task.startsWith('Goal objective'))
-  const gate = { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'general', criteriaMode: 'auto' as const, skipWhenAskingUser: true, minSteps: 1, minToolCallsWithoutOwnTask: 8, skipSubagents: true, handoffTools: [], feedbackMaxChars: 2500, timeoutMs: 1000 }
+  const gate = { enabled: true, threshold: 0.6, maxRounds: 1, evaluations: 1, criteria: 'auto', skipWhenAskingUser: true, minToolCallsWithoutOwnTask: 8, skipSubagents: true, handoffTools: [], feedbackMaxChars: 2500, timeoutMs: 1000 }
   assert.ok(skipReason(t2, gate)?.startsWith('relay turn without own task'))
   const t1 = buildTrajectory(events, 1, base)
   assert.equal(t1.ownTask, true)

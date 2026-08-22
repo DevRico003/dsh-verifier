@@ -1,11 +1,9 @@
 /**
  * Verifier model backends.
  *
- * - `OpenAICompatibleBackend`: direct chat-completions call with
- *   `logprobs` + `top_logprobs`, which is what makes the fine-grained
- *   expectation score possible (vLLM / SGLang / DeepSeek API all serve it).
- * - `HarnessLlmBackend`: routes through the harness `ctx.llm` seam (any
- *   configured provider), text-only, so scores degrade to the literal letter.
+ * `OpenAICompatibleBackend` makes a direct chat-completions call with
+ * `logprobs` + `top_logprobs`, which is what makes the fine-grained
+ * expectation score possible (vLLM / SGLang / DeepSeek API all serve it).
  */
 import type { TokenLogprob } from './scoring.js';
 export interface CompletionRequest {
@@ -88,35 +86,6 @@ export declare class OpenAICompatibleBackend implements VerifierBackend {
     /** Node's global fetch gives up on response headers after 300 s; a thinking verifier on a long trajectory can take longer, so the dispatcher follows `timeoutMs`. */
     private readonly dispatcher;
     constructor(options: OpenAICompatibleOptions);
-    complete(request: CompletionRequest): Promise<Completion>;
-}
-/** Minimal view of the harness LLM seam this backend needs (kept structural to avoid a hard type dependency). */
-export interface HarnessLlmLike {
-    stream(options: {
-        provider: string;
-        model: string;
-        reasoningEffort?: string;
-        messages: unknown[];
-        system?: string;
-        temperature?: number;
-        maxTokens?: number;
-        signal?: AbortSignal;
-    }): AsyncIterable<unknown>;
-}
-export interface HarnessLlmBackendOptions {
-    provider: string;
-    model: string;
-    reasoningEffort?: string;
-    timeoutMs: number;
-    createUserMessage: (text: string) => unknown;
-    collectText: (chunks: AsyncIterable<unknown>) => Promise<string>;
-}
-export declare class HarnessLlmBackend implements VerifierBackend {
-    private readonly llm;
-    private readonly options;
-    readonly label: string;
-    readonly supportsLogprobs = false;
-    constructor(llm: HarnessLlmLike, options: HarnessLlmBackendOptions);
     complete(request: CompletionRequest): Promise<Completion>;
 }
 export {};

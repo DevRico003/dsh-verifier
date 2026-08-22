@@ -4,17 +4,13 @@
  */
 import z from '@deepseek-ai/schemastery';
 export interface BackendConfig {
-    /** `openai-compatible` calls the endpoint directly with logprobs; `harness` routes through `ctx.llm` (text-only scores). */
-    kind: 'openai-compatible' | 'harness';
-    /** OpenAI-compatible base URL (kind `openai-compatible`). */
+    /** OpenAI-compatible chat-completions base URL; the endpoint must return `logprobs`. */
     baseURL: string;
-    /** Model id sent to the endpoint (`openai-compatible`) or the harness provider's model (`harness`). */
+    /** Model id sent to the endpoint. */
     model: string;
-    /** Harness provider route (kind `harness`). */
-    provider: string;
-    /** Environment variable / credential reference holding the API key for `openai-compatible`; empty = no auth header. */
+    /** Environment variable / credential reference holding the API key; empty = no Authorization header. */
     apiKeyEnv: string;
-    /** Verifier reasoning effort sent as `reasoning_effort`. `high` is the reference's setting; with streaming and a generous cap it may take minutes per call but never breaks. `low` is about three times faster with close verdicts; `none` is the one-shot reading; empty string sends nothing. */
+    /** Sent as `reasoning_effort` on every verifier call (gate and tools). `high` is the reference setting; `low` is about three times faster with close verdicts; `none` is a one-shot reading; empty sends nothing. */
     reasoningEffort: string;
     /** Hard cap per verifier call. Generous on purpose: thinking is never cut short, the idle timer catches a dead stream. */
     timeoutMs: number;
@@ -30,8 +26,6 @@ export interface BackendConfig {
     concurrency: number;
     /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
     retriesOnFallback: number;
-    /** Reasoning effort for the `verifier_*` tools (node gates the agent calls itself); empty = same as `reasoningEffort`. `low` keeps a node gate at a minute or two. */
-    toolReasoningEffort: string;
     /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. Saves prefill work at the price of doubling wall-clock; on a local vLLM with fast prefill leave it off. */
     warmPrefix: boolean;
 }
@@ -42,19 +36,15 @@ export interface GateConfig {
     threshold: number;
     /** Forced continuations per turn before the verifier lets the turn close. */
     maxRounds: number;
-    /** Repeated evaluations per criterion (K). */
+    /** Repeated evaluations per criterion (K); also the default K of `verifier_assess`. */
     evaluations: number;
-    /** Built-in criteria set for the gate: general | coding | terminal. */
+    /** Criteria set: `auto` picks `coding` when the turn used tools and `general` otherwise; or a set name (general | coding | terminal). */
     criteria: string;
-    /** `auto` picks `coding` when the turn used tools, else `general`; any set name pins it. */
-    criteriaMode: 'auto' | 'fixed';
     /** Skip turns whose final message asks the user a question (forcing continuation would answer on the user's behalf). */
     skipWhenAskingUser: boolean;
-    /** Skip turns shorter than this many agent steps (0 = verify everything). */
-    minSteps: number;
     /** A turn opened only by a relay (subagent report, plugin notice), not by the user or a goal round, is gated only when it made at least this many tool calls. */
     minToolCallsWithoutOwnTask: number;
-    /** Skip child agents (subagents / agent-team members, detected via `session.meta.parentSession`); the parent's turn is verified instead. */
+    /** Skip child agents (subagents / agent-team members); the parent's turn is verified instead. */
     skipSubagents: boolean;
     /** Tool names that mark a turn as deliberately handed back to the user; such turns are never forced on. */
     handoffTools: string[];
@@ -64,7 +54,7 @@ export interface GateConfig {
     timeoutMs: number;
 }
 export interface SelectConfig {
-    /** K for the pairwise tools. */
+    /** K for `verifier_select` and `verifier_compare`. */
     evaluations: number;
     /** Pivot count k for the tournament. */
     pivots: number;
@@ -74,12 +64,12 @@ export interface SelectConfig {
     criteria: string;
 }
 export interface TrajectoryConfig {
+    /** Cap per tool output / message excerpt. */
     maxStepChars: number;
+    /** Cap for the whole serialized turn; over it the middle is elided, the opening and the most recent steps stay. */
     maxTotalChars: number;
     /** Earlier turns prepended when a turn is a continuation ("Continue."). */
     continuationTurns: number;
-    /** Cap for the trajectory handed to the `verifier_*` tools (the end-of-turn gate uses `maxTotalChars`). */
-    toolMaxTotalChars: number;
 }
 export interface SnapshotConfig {
     /** Register the `ui_snapshot` tool (headless Playwright screenshots for visual evidence). */
@@ -97,38 +87,6 @@ export interface SnapshotConfig {
     /** Output root; empty = `$DSH_HOME/verifier/snapshots`. */
     dir: string;
 }
-export interface CheckpointConfig {
-    /** Score the running turn at step boundaries and steer when progress is low or falling. */
-    enabled: boolean;
-    /** First checkpoint at this step. */
-    minSteps: number;
-    /** Steps between checkpoints. */
-    everySteps: number;
-    /** Repeats of the progress prompt per checkpoint (K). */
-    evaluations: number;
-    /** Steer when progress is below this. */
-    threshold: number;
-    /** Steer when progress fell by at least this since the previous checkpoint. */
-    drop: number;
-    /** A reading below `threshold` that rose less than this since the previous checkpoint counts as stalled. */
-    minRise: number;
-    /** Consecutive stalled readings before a steer (a fall steers at once). */
-    stallReadings: number;
-    /** Checkpoint steers per turn. */
-    maxSteers: number;
-    /** A triggered checkpoint is delivered only when its assessment scores below this (0 = below `gate.threshold`); a fall that the assessment does not confirm costs the agent nothing but the wait. */
-    steerBelow: number;
-    /** `blocking`: a triggered checkpoint is assessed at the next step boundary while the agent waits, so the findings are fresh. `background`: assess and steer asynchronously. */
-    deliver: 'blocking' | 'background';
-    /** Reasoning effort for checkpoint readings and their assessments; empty = `backend.reasoningEffort`. `low` keeps the frequent mid-turn work quick; the end-of-turn gate keeps the backend effort. */
-    reasoningEffort: string;
-    /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */
-    gateDebtEdits: number;
-    /** Tool names that count as file edits. */
-    editTools: string[];
-    /** Deadline per checkpoint (progress plus assessment). */
-    timeoutMs: number;
-}
 export interface Config {
     /** Master switch. */
     enabled: boolean;
@@ -137,11 +95,8 @@ export interface Config {
     select: SelectConfig;
     trajectory: TrajectoryConfig;
     snapshot: SnapshotConfig;
-    checkpoint: CheckpointConfig;
     /** Register the `verifier_*` tools. */
     tools: boolean;
-    /** Repeats per criterion for `verifier_assess` when the agent passes no `evaluations` (the tool call's K). */
-    toolEvaluations: number;
     /** Log every verifier call at info level. */
     verbose: boolean;
 }
@@ -150,7 +105,6 @@ export declare const GateConfig: z<GateConfig>;
 export declare const SelectConfig: z<SelectConfig>;
 export declare const TrajectoryConfig: z<TrajectoryConfig>;
 export declare const SnapshotConfig: z<SnapshotConfig>;
-export declare const CheckpointConfig: z<CheckpointConfig>;
 export declare const Config: z<Config>;
 /** Fail-loud checks beyond what the schema expresses. */
 export declare function validateConfig(config: Config): void;

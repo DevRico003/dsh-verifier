@@ -4,19 +4,16 @@
  */
 
 import z from '@deepseek-ai/schemastery'
+import { CRITERIA_SET_NAMES } from './core/prompts.js'
 
 export interface BackendConfig {
-  /** `openai-compatible` calls the endpoint directly with logprobs; `harness` routes through `ctx.llm` (text-only scores). */
-  kind: 'openai-compatible' | 'harness'
-  /** OpenAI-compatible base URL (kind `openai-compatible`). */
+  /** OpenAI-compatible chat-completions base URL; the endpoint must return `logprobs`. */
   baseURL: string
-  /** Model id sent to the endpoint (`openai-compatible`) or the harness provider's model (`harness`). */
+  /** Model id sent to the endpoint. */
   model: string
-  /** Harness provider route (kind `harness`). */
-  provider: string
-  /** Environment variable / credential reference holding the API key for `openai-compatible`; empty = no auth header. */
+  /** Environment variable / credential reference holding the API key; empty = no Authorization header. */
   apiKeyEnv: string
-  /** Verifier reasoning effort sent as `reasoning_effort`. `high` is the reference's setting; with streaming and a generous cap it may take minutes per call but never breaks. `low` is about three times faster with close verdicts; `none` is the one-shot reading; empty string sends nothing. */
+  /** Sent as `reasoning_effort` on every verifier call (gate and tools). `high` is the reference setting; `low` is about three times faster with close verdicts; `none` is a one-shot reading; empty sends nothing. */
   reasoningEffort: string
   /** Hard cap per verifier call. Generous on purpose: thinking is never cut short, the idle timer catches a dead stream. */
   timeoutMs: number
@@ -32,8 +29,6 @@ export interface BackendConfig {
   concurrency: number
   /** Re-ask when a verifier reply has no parseable score or the call failed; unscored verdicts never count as 0.5. */
   retriesOnFallback: number
-  /** Reasoning effort for the `verifier_*` tools (node gates the agent calls itself); empty = same as `reasoningEffort`. `low` keeps a node gate at a minute or two. */
-  toolReasoningEffort: string
   /** Run the first call of a shared prompt prefix to completion before fanning out the rest, so a prefix-caching server serves the trajectory from cache. Saves prefill work at the price of doubling wall-clock; on a local vLLM with fast prefill leave it off. */
   warmPrefix: boolean
 }
@@ -45,19 +40,15 @@ export interface GateConfig {
   threshold: number
   /** Forced continuations per turn before the verifier lets the turn close. */
   maxRounds: number
-  /** Repeated evaluations per criterion (K). */
+  /** Repeated evaluations per criterion (K); also the default K of `verifier_assess`. */
   evaluations: number
-  /** Built-in criteria set for the gate: general | coding | terminal. */
+  /** Criteria set: `auto` picks `coding` when the turn used tools and `general` otherwise; or a set name (general | coding | terminal). */
   criteria: string
-  /** `auto` picks `coding` when the turn used tools, else `general`; any set name pins it. */
-  criteriaMode: 'auto' | 'fixed'
   /** Skip turns whose final message asks the user a question (forcing continuation would answer on the user's behalf). */
   skipWhenAskingUser: boolean
-  /** Skip turns shorter than this many agent steps (0 = verify everything). */
-  minSteps: number
   /** A turn opened only by a relay (subagent report, plugin notice), not by the user or a goal round, is gated only when it made at least this many tool calls. */
   minToolCallsWithoutOwnTask: number
-  /** Skip child agents (subagents / agent-team members, detected via `session.meta.parentSession`); the parent's turn is verified instead. */
+  /** Skip child agents (subagents / agent-team members); the parent's turn is verified instead. */
   skipSubagents: boolean
   /** Tool names that mark a turn as deliberately handed back to the user; such turns are never forced on. */
   handoffTools: string[]
@@ -68,7 +59,7 @@ export interface GateConfig {
 }
 
 export interface SelectConfig {
-  /** K for the pairwise tools. */
+  /** K for `verifier_select` and `verifier_compare`. */
   evaluations: number
   /** Pivot count k for the tournament. */
   pivots: number
@@ -79,12 +70,12 @@ export interface SelectConfig {
 }
 
 export interface TrajectoryConfig {
+  /** Cap per tool output / message excerpt. */
   maxStepChars: number
+  /** Cap for the whole serialized turn; over it the middle is elided, the opening and the most recent steps stay. */
   maxTotalChars: number
   /** Earlier turns prepended when a turn is a continuation ("Continue."). */
   continuationTurns: number
-  /** Cap for the trajectory handed to the `verifier_*` tools (the end-of-turn gate uses `maxTotalChars`). */
-  toolMaxTotalChars: number
 }
 
 export interface SnapshotConfig {
@@ -104,39 +95,6 @@ export interface SnapshotConfig {
   dir: string
 }
 
-export interface CheckpointConfig {
-  /** Score the running turn at step boundaries and steer when progress is low or falling. */
-  enabled: boolean
-  /** First checkpoint at this step. */
-  minSteps: number
-  /** Steps between checkpoints. */
-  everySteps: number
-  /** Repeats of the progress prompt per checkpoint (K). */
-  evaluations: number
-  /** Steer when progress is below this. */
-  threshold: number
-  /** Steer when progress fell by at least this since the previous checkpoint. */
-  drop: number
-  /** A reading below `threshold` that rose less than this since the previous checkpoint counts as stalled. */
-  minRise: number
-  /** Consecutive stalled readings before a steer (a fall steers at once). */
-  stallReadings: number
-  /** Checkpoint steers per turn. */
-  maxSteers: number
-  /** A triggered checkpoint is delivered only when its assessment scores below this (0 = below `gate.threshold`); a fall that the assessment does not confirm costs the agent nothing but the wait. */
-  steerBelow: number
-  /** `blocking`: a triggered checkpoint is assessed at the next step boundary while the agent waits, so the findings are fresh. `background`: assess and steer asynchronously. */
-  deliver: 'blocking' | 'background'
-  /** Reasoning effort for checkpoint readings and their assessments; empty = `backend.reasoningEffort`. `low` keeps the frequent mid-turn work quick; the end-of-turn gate keeps the backend effort. */
-  reasoningEffort: string
-  /** Remind the agent to gate after this many file edits without a `verifier_*` call (0 = off). */
-  gateDebtEdits: number
-  /** Tool names that count as file edits. */
-  editTools: string[]
-  /** Deadline per checkpoint (progress plus assessment). */
-  timeoutMs: number
-}
-
 export interface Config {
   /** Master switch. */
   enabled: boolean
@@ -145,20 +103,15 @@ export interface Config {
   select: SelectConfig
   trajectory: TrajectoryConfig
   snapshot: SnapshotConfig
-  checkpoint: CheckpointConfig
   /** Register the `verifier_*` tools. */
   tools: boolean
-  /** Repeats per criterion for `verifier_assess` when the agent passes no `evaluations` (the tool call's K). */
-  toolEvaluations: number
   /** Log every verifier call at info level. */
   verbose: boolean
 }
 
 export const BackendConfig: z<BackendConfig> = z.object({
-  kind: z.union(['openai-compatible', 'harness']).default('openai-compatible'),
   baseURL: z.string().default('http://127.0.0.1:8000/v1'),
   model: z.string().default('default'),
-  provider: z.string().default('spark'),
   apiKeyEnv: z.string().default(''),
   reasoningEffort: z.string().default('high'),
   timeoutMs: z.number().default(3_600_000),
@@ -166,10 +119,9 @@ export const BackendConfig: z<BackendConfig> = z.object({
   maxTokens: z.number().default(65_536),
   temperature: z.number().default(1.0),
   topLogprobs: z.number().default(20),
-  concurrency: z.number().default(4),
+  concurrency: z.number().default(8),
   retriesOnFallback: z.number().default(1),
   warmPrefix: z.boolean().default(false),
-  toolReasoningEffort: z.string().default(''),
 })
 
 export const GateConfig: z<GateConfig> = z.object({
@@ -177,10 +129,8 @@ export const GateConfig: z<GateConfig> = z.object({
   threshold: z.number().default(0.6),
   maxRounds: z.number().default(1),
   evaluations: z.number().default(1),
-  criteria: z.string().default('general'),
-  criteriaMode: z.union(['auto', 'fixed']).default('auto'),
+  criteria: z.string().default('auto'),
   skipWhenAskingUser: z.boolean().default(true),
-  minSteps: z.number().default(1),
   minToolCallsWithoutOwnTask: z.number().default(8),
   skipSubagents: z.boolean().default(true),
   handoffTools: z.array(z.string()).default(['ask_user', 'ask_user_question', 'AskUserQuestion']),
@@ -199,7 +149,6 @@ export const TrajectoryConfig: z<TrajectoryConfig> = z.object({
   maxStepChars: z.number().default(6000),
   maxTotalChars: z.number().default(300_000),
   continuationTurns: z.number().default(1),
-  toolMaxTotalChars: z.number().default(80_000),
 })
 
 export const SnapshotConfig: z<SnapshotConfig> = z.object({
@@ -212,24 +161,6 @@ export const SnapshotConfig: z<SnapshotConfig> = z.object({
   dir: z.string().default(''),
 })
 
-export const CheckpointConfig: z<CheckpointConfig> = z.object({
-  enabled: z.boolean().default(true),
-  minSteps: z.number().default(40),
-  everySteps: z.number().default(40),
-  evaluations: z.number().default(1),
-  threshold: z.number().default(0.3),
-  drop: z.number().default(0.25),
-  minRise: z.number().default(0.05),
-  stallReadings: z.number().default(2),
-  maxSteers: z.number().default(3),
-  steerBelow: z.number().default(0),
-  deliver: z.union(['blocking', 'background']).default('blocking'),
-  reasoningEffort: z.string().default('low'),
-  gateDebtEdits: z.number().default(12),
-  editTools: z.array(z.string()).default(['write', 'edit', 'str_replace_editor', 'apply_patch', 'notebook_edit']),
-  timeoutMs: z.number().default(3_600_000),
-})
-
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(true),
   backend: BackendConfig.default({} as BackendConfig),
@@ -237,9 +168,7 @@ export const Config: z<Config> = z.object({
   select: SelectConfig.default({} as SelectConfig),
   trajectory: TrajectoryConfig.default({} as TrajectoryConfig),
   snapshot: SnapshotConfig.default({} as SnapshotConfig),
-  checkpoint: CheckpointConfig.default({} as CheckpointConfig),
   tools: z.boolean().default(true),
-  toolEvaluations: z.number().default(1),
   verbose: z.boolean().default(false),
 })
 
@@ -249,12 +178,11 @@ export function validateConfig(config: Config): void {
   if (gate.threshold < 0 || gate.threshold > 1) throw new Error(`dsh-verifier-gate: gate.threshold must be within [0, 1], got ${gate.threshold}`)
   if (!Number.isInteger(gate.maxRounds) || gate.maxRounds < 0) throw new Error(`dsh-verifier-gate: gate.maxRounds must be an integer >= 0, got ${gate.maxRounds}`)
   if (!Number.isInteger(gate.evaluations) || gate.evaluations < 1) throw new Error(`dsh-verifier-gate: gate.evaluations must be an integer >= 1`)
-  if (!Number.isInteger(config.toolEvaluations) || config.toolEvaluations < 1) throw new Error(`dsh-verifier-gate: toolEvaluations must be an integer >= 1`)
+  if (gate.criteria !== 'auto' && !CRITERIA_SET_NAMES.includes(gate.criteria)) throw new Error(`dsh-verifier-gate: gate.criteria must be auto or one of ${CRITERIA_SET_NAMES.join(', ')}, got "${gate.criteria}"`)
+  if (!CRITERIA_SET_NAMES.includes(select.criteria)) throw new Error(`dsh-verifier-gate: select.criteria must be one of ${CRITERIA_SET_NAMES.join(', ')}, got "${select.criteria}"`)
   if (!Number.isInteger(select.evaluations) || select.evaluations < 1) throw new Error(`dsh-verifier-gate: select.evaluations must be an integer >= 1`)
   if (!Number.isInteger(select.pivots) || select.pivots < 1) throw new Error(`dsh-verifier-gate: select.pivots must be an integer >= 1`)
   if (!Number.isInteger(backend.topLogprobs) || backend.topLogprobs < 1 || backend.topLogprobs > 20) throw new Error(`dsh-verifier-gate: backend.topLogprobs must be an integer in [1, 20]`)
   if (!Number.isInteger(backend.concurrency) || backend.concurrency < 1) throw new Error(`dsh-verifier-gate: backend.concurrency must be an integer >= 1`)
-  if (config.checkpoint.threshold < 0 || config.checkpoint.threshold > 1) throw new Error(`dsh-verifier-gate: checkpoint.threshold must be within [0, 1]`)
-  if (!Number.isInteger(config.checkpoint.everySteps) || config.checkpoint.everySteps < 1) throw new Error(`dsh-verifier-gate: checkpoint.everySteps must be an integer >= 1`)
-  if (backend.kind === 'openai-compatible' && !/^https?:\/\//.test(backend.baseURL)) throw new Error(`dsh-verifier-gate: backend.baseURL must be an http(s) URL, got "${backend.baseURL}"`)
+  if (!/^https?:\/\//.test(backend.baseURL)) throw new Error(`dsh-verifier-gate: backend.baseURL must be an http(s) URL, got "${backend.baseURL}"`)
 }

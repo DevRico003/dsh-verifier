@@ -1,11 +1,9 @@
 /**
  * Verifier model backends.
  *
- * - `OpenAICompatibleBackend`: direct chat-completions call with
- *   `logprobs` + `top_logprobs`, which is what makes the fine-grained
- *   expectation score possible (vLLM / SGLang / DeepSeek API all serve it).
- * - `HarnessLlmBackend`: routes through the harness `ctx.llm` seam (any
- *   configured provider), text-only, so scores degrade to the literal letter.
+ * `OpenAICompatibleBackend` makes a direct chat-completions call with
+ * `logprobs` + `top_logprobs`, which is what makes the fine-grained
+ * expectation score possible (vLLM / SGLang / DeepSeek API all serve it).
  */
 
 import { Agent as UndiciAgent } from 'undici'
@@ -260,51 +258,5 @@ export class OpenAICompatibleBackend implements VerifierBackend {
     } finally {
       if (idleTimer !== undefined) clearTimeout(idleTimer)
     }
-  }
-}
-
-/** Minimal view of the harness LLM seam this backend needs (kept structural to avoid a hard type dependency). */
-export interface HarnessLlmLike {
-  stream(options: {
-    provider: string
-    model: string
-    reasoningEffort?: string
-    messages: unknown[]
-    system?: string
-    temperature?: number
-    maxTokens?: number
-    signal?: AbortSignal
-  }): AsyncIterable<unknown>
-}
-
-export interface HarnessLlmBackendOptions {
-  provider: string
-  model: string
-  reasoningEffort?: string
-  timeoutMs: number
-  createUserMessage: (text: string) => unknown
-  collectText: (chunks: AsyncIterable<unknown>) => Promise<string>
-}
-
-export class HarnessLlmBackend implements VerifierBackend {
-  readonly label: string
-  readonly supportsLogprobs = false
-  constructor(private readonly llm: HarnessLlmLike, private readonly options: HarnessLlmBackendOptions) {
-    this.label = `harness:${options.provider} · ${options.model}`
-  }
-
-  async complete(request: CompletionRequest): Promise<Completion> {
-    const { options } = this
-    const text = await options.collectText(this.llm.stream({
-      provider: options.provider,
-      model: options.model,
-      ...options.reasoningEffort !== undefined ? { reasoningEffort: options.reasoningEffort } : {},
-      messages: [options.createUserMessage(request.prompt)],
-      ...request.system !== undefined ? { system: request.system } : {},
-      temperature: request.temperature,
-      maxTokens: request.maxTokens,
-      signal: composeSignal(request.signal, options.timeoutMs),
-    }))
-    return { text }
   }
 }

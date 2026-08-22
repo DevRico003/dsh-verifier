@@ -1,15 +1,15 @@
 ---
 name: graph-verified-coding
-description: Coding with verifier gates, for the dsh-verifier-gate plugin. Load for coding work that spans more than one file or step, has competing approaches, or runs unattended (goal, headless, subagents), and whenever the user says verify, gate, or best-of. Cuts the task into nodes with contracts, gates each node with evidence and verifier_assess, joins candidates with verifier_select, repairs in bounded cycles, reports with evidence.
+description: Coding with verifier gates, for the dsh-verifier-gate plugin. Load for coding work that spans more than one file or step, has competing approaches, or runs unattended (goal, headless, subagents), and whenever the user says verify, gate, or best-of. Cuts the task into nodes with contracts, checks each node with observed output, joins candidates with verifier_select, gates the whole deliverable with verifier_assess, reports with evidence.
 ---
 
 # Graph-verified coding
 
-`dsh-verifier-gate` gives you a second reader. `verifier_assess` scores one result against three criteria, `verifier_select` ranks candidates, `ui_snapshot` renders pages headless, a checkpoint scores the running turn every forty steps, and a gate at the end of every turn scores the whole turn and sends you back when it falls below the threshold. This skill is how to work so those calls change the outcome instead of decorating it.
+`dsh-verifier-gate` gives you a second reader. `verifier_assess` scores one result against three criteria and returns findings, `verifier_select` ranks candidates, `ui_snapshot` renders pages headless, and a gate at the end of every turn scores the whole turn and sends you back when it falls below the threshold. Every verifier call thinks at full effort and takes minutes, so the method below places few of them, where they decide something.
 
-Five words carry the method. A **node** is one bounded unit of work with a **contract**: input, output, the command that proves it. An **edge** exists only where the next node reads the previous node's output. A **gate** decides whether work continues. A **join** merges parallel branches. A **cycle** is WORK, VERIFY, REPAIR with a hard stop.
+Five words carry the method. A **node** is one bounded unit of work with a **contract**: input, output, the command that proves it. An **edge** exists only where the next node reads the previous node's output. A **gate** decides whether work continues. A **join** merges parallel branches. A **cycle** is WORK, CHECK, REPAIR with a hard stop.
 
-**Evidence** is observed output: stdout, a test report, a rendered page, a verifier score. Your narration is not evidence. Every gate and the final report rest on evidence.
+**Evidence** is observed output: stdout, a test report, a rendered page, a verifier score. Your narration is not evidence. Every check, every gate and the final report rest on evidence.
 
 ## Steps
 
@@ -17,21 +17,20 @@ Five words carry the method. A **node** is one bounded unit of work with a **con
 
 2. **Cut false edges.** List the nodes. For each pair ask whether the next node reads the previous node's output; where it does not, the edge goes. Independent nodes run in parallel through `subagent`, at most two to four at once because every branch shares the model slots; dependent nodes run inline in sequence. Each child gets its node's full contract and writes its complete result to `.graph/<node>.md` in the workspace, ending its closing message with that path and a ten-line summary. Some hosts hand you a child's `report` only when your turn ends, so read the file as soon as the child settles, before starting a node that depends on it. Done when every remaining edge carries real data and every child knows its file.
 
-3. **Work node.** Implement one node against its contract. Run the proving command inside the node (tests, the program, curl) and keep the output. Done when the contract is met with observed output in hand and the node's gate (step 4) has passed.
+3. **Work node.** Implement one node against its contract. Run the proving command inside the node (tests, the program, curl) and keep the output. Done when the contract is met with observed output in hand.
 
-4. **Gate.** After every node that changed more than one file, before every merge, and before the final answer:
-   - Deterministic first: tests, type check, lint, the command the task names. Fix the root cause.
+4. **Check.** After every node, deterministic and cheap:
+   - Tests, type check, lint, the command the task names. Fix the root cause.
    - Rendered output: `ui_snapshot(url)` gives PNGs for every viewport in light and dark plus console and page errors; clear the errors, then `analyze_image` with `backend: detailed` on each path for the visual verdict. Clicking, typing and DOM reads go through the headless `browser_open`, `browser_interact`, `browser_read`, `browser_console`.
-   - Then `verifier_assess` with `criteria: coding`, the node's contract as `task`, the work plus its observed evidence as `answer`. It reads your current turn's trajectory by default, so the evidence must be in tool output, not only in your summary. Read `findings` per criterion; repair what is right, rebut in one sentence what is wrong.
-   Done when every acceptance criterion has a passing observation and `pass` is true with `scoredCriteria` above zero. A result with `scoredCriteria: 0` is a backend failure, never a verdict: report it and continue on the deterministic checks.
+   Done when every acceptance criterion of the node has a passing observation.
 
-5. **Join.** Competing candidates (patches, designs, plans) are ranked with `verifier_select`; two candidates with `verifier_compare`. Merge the winner, then gate the merged result (step 4). Done when one candidate is chosen with its score and the merge passed its gate.
+5. **Join.** Competing candidates (patches, designs, plans) are ranked with `verifier_select`; two candidates with `verifier_compare`. Merge the winner, then check the merged result (step 4). Done when one candidate is chosen with its score and the merge passed its check.
 
-6. **Cycle with a stop.** On a failed gate: repair, re-run the gate. Bound the cycle before you start, two rounds as the norm, three for risky changes. On the last failed round stop and report the open findings. Done when the gate passes or the round budget is spent and the report names what is still open.
+6. **Cycle with a stop.** On a failed check or gate: repair, re-run it. Bound the cycle before you start, two rounds as the norm, three for risky changes. On the last failed round stop and report the open findings. Done when the check or gate passes or the round budget is spent and the report names what is still open.
 
-7. **Report with evidence.** What was verified and how (commands, test counts, snapshot paths, every verifier call with score and `scoredCriteria`), what was not verified and why, the open findings. Done when a reader can reproduce every claim.
+7. **Gate and report.** Before the final answer, once for the whole deliverable: `verifier_assess` with `criteria: coding`, the contract from step 1 as `task`, the work plus its observed evidence as `answer`. It reads your current turn's trajectory by default, so the evidence must be in tool output, not only in your summary. Read `findings` per criterion; repair what is right (step 6), rebut in one sentence what is wrong. Then report: what was verified and how (commands, test counts, snapshot paths, every verifier call with score and `scoredCriteria`), what was not verified and why, the open findings. Done when `pass` is true with `scoredCriteria` above zero, or the round budget is spent and the report says so, and a reader can reproduce every claim. A result with `scoredCriteria: 0` is a backend failure, never a verdict: report it and continue on the deterministic checks.
 
-Three messages come from the plugin itself. `[dsh-verifier-gate]` after your turn is the end-of-turn gate: a failed gate, so repair, re-verify, answer. `[dsh-verifier-gate checkpoint]` during your turn is a mid-turn reading of the trajectory so far with findings, assessed on the state you are in right now (the step waited for it), so it is current: act on the findings in the current node, then continue. `[dsh-verifier-gate] N file edits since your last verifier call` is gate debt: gate the node now (proving command, then `verifier_assess`), then continue. A finding that is mistaken gets one sentence saying why.
+One message comes from the plugin itself. `[dsh-verifier-gate]` after your turn is the end-of-turn gate: a failed gate, so repair, re-verify, answer. A finding that is mistaken gets one sentence saying why.
 
 ## Reference
 
@@ -48,7 +47,7 @@ Three messages come from the plugin itself. `[dsh-verifier-gate]` after your tur
 
 **Reading a verdict.** `score` is the mean over criteria of an expectation over the verifier's letter distribution, so 0.72 means the verifier leans yes with doubt, 0.95 means it saw the proof. `source: logprobs` is the full reading, `text` a single sampled letter, and `scored: false` means that criterion produced no verdict. `findings` is the verifier's analysis and names what is missing, wrong or unverified; it is written to be acted on.
 
-**Cost.** One `verifier_assess` is three parallel calls at effort low (one per criterion), two to four minutes on a long turn depending on server load; it always ends with a verdict, so wait for it rather than calling again. `verifier_select` over three candidates is about fifteen short calls, several minutes; use it for decisions that matter, not for every small choice. The end-of-turn gate thinks at high and takes longer. Place gates where they pay: one per completed multi-file node, one per merge, one before the final answer. For N such nodes expect at least N + 1 calls; a long build with two calls means the node gates were skipped.
+**Cost.** One `verifier_assess` is three parallel calls at full effort (one per criterion), five to eight minutes on a long turn on the Spark pair; it always ends with a verdict, so wait for it rather than calling again. `verifier_select` over three candidates is fifteen calls, ten minutes and more; use it for decisions that matter, not for every small choice. The end-of-turn gate costs the same as one `verifier_assess`. So: deterministic checks after every node, one `verifier_select` per real fork, one `verifier_assess` before the final answer. A build with ten nodes and one verifier call is the norm, not a shortcut.
 
 **Design rounds.** `ui_snapshot` before, `analyze_image` on each shot with a concrete question (contrast, spacing, hierarchy, clipped content, consistency with the design guidelines in use), change the code, `ui_snapshot` after with a `label` such as `round-2-after`, `analyze_image` again, keep both paths for the report. Two rounds minimum when the task names design quality; stop when a round yields no finding.
 

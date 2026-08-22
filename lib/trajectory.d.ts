@@ -48,14 +48,6 @@ export declare function buildTrajectory(events: readonly SessionEvent[], turn: n
 export declare function elideMiddle(steps: readonly string[], cap: number): string;
 /** A turn that opens with "Continue." (auto-continue, goal resume) rather than a fresh request. */
 export declare function isContinuation(firstTask: string): boolean;
-export interface VerifierDebt {
-    /** File-editing tool calls since the last `verifier_*` call in this turn (or since the turn began). */
-    edits: number;
-    /** Step number of the last `verifier_*` call, 0 when none. */
-    lastVerifierStep: number;
-}
-/** Count edits since the agent last asked the verifier, within one turn. */
-export declare function verifierDebt(events: readonly SessionEvent[], turn: number, editTools: readonly string[]): VerifierDebt;
 /**
  * Whether an agent is a child (subagent, team member). Checked three ways
  * because hosts differ: `session.meta.parentSession` (current harness),

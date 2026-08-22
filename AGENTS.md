@@ -35,13 +35,13 @@ You are adding this plugin to an existing DeepSeek Harness installation. Finish 
    - `dsh --profile headless "Call ui_snapshot with url https://example.com/ and reply only with the number of shots and the browser field."` answers 4 and a `headless=true` browser (needs Google Chrome or a Playwright Chromium on the machine).
    Done when all four hold.
 
-5. **Report.** The profiles touched, the `verifier:` section written, the three smoke-test outputs verbatim. Done when the human can reproduce every claim.
+5. **Report.** The profiles touched, the `verifier:` section written, the four smoke-test outputs verbatim. Done when the human can reproduce every claim.
 
 ## Reference
 
 **Settings.** Everything under `verifier:` in `$DSH_HOME/settings.yaml` hot-reloads. `gate.threshold` (0.6), `gate.maxRounds` (1), `gate.enabled`, `tools`, `backend.reasoningEffort`. The README lists every key.
 
-**Cost.** The verifier thinks at `high` and is never cut short: calls stream, so a gate over a long turn takes two to fifteen minutes and always ends with a verdict. One gate pass is three parallel calls at the end of every turn. The `verifier_*` tools (the node gates the agent calls itself) think at `low`, three calls fanned out, two to four minutes each on the Spark pair; checkpoints think at `low` and add one short call every forty steps, plus an assessment while the agent waits when one triggers. Tell the human that, and how to turn things off (`verifier: gate: enabled: false`, `verifier: checkpoint: enabled: false`) or make them fast (`verifier: backend: reasoningEffort: low` or `none`).
+**Cost.** One effort for every verifier call, `high` by default, never cut short: calls stream and always end with a verdict. The gate is three parallel calls at the end of every turn, four to seven minutes over a long turn on a DGX Spark pair; `verifier_assess` costs the same when the agent calls it, `verifier_select` over three candidates about fifteen calls. There is no mid-turn verification. Tell the human that, and how to turn the gate off (`verifier: gate: enabled: false`) or make every call fast (`verifier: backend: reasoningEffort: low` or `none`).
 
 **Logs.** `dsh web` prints the harness logger to its terminal; DSH Desktop writes `~/Library/Application Support/DSH Desktop/logs/dsh-<date>.log`. Headless keeps stderr empty on success.
 

@@ -7,16 +7,16 @@
       config:
         enabled: true
         backend:
-          # Direct OpenAI-compatible call WITH logprobs (fine-grained scores).
+          # OpenAI-compatible chat completions WITH logprobs (the fine-grained score needs them).
           # Defaults target the DGX Spark pair serving DeepSeek-V4-Flash-0731.
-          kind: openai-compatible
           baseURL: http://YOUR_SPARK_HOST:8000/v1
           model: deepseek-v4-flash-0731
           apiKeyEnv: SPARK_API_KEY
-          # Thinking at `high`, the reference's setting, with room: calls stream, so a long
-          # think never trips a transport timeout; `idleTimeoutMs` catches a dead stream and
-          # `timeoutMs` is only a last-resort cap. `low` is about three times faster with
-          # close verdicts; `none` is the one-shot reading.
+          # One effort for every verifier call, gate and tools alike. `high` is the setting the
+          # llm-as-a-verifier authors used for DeepSeek V4 Flash. Calls stream, so a long think never
+          # trips a transport timeout; `idleTimeoutMs` catches a dead stream, `timeoutMs` is the cap.
+          # `low` is about three times faster with verdicts within 0.06 on an A/B here; `none` is
+          # the one-shot reading for chat sessions.
           reasoningEffort: high
           timeoutMs: 3600000
           # 15 min: a request queued behind a full server sends nothing until it is scheduled.
@@ -24,48 +24,39 @@
           maxTokens: 65536
           temperature: 1.0
           topLogprobs: 20
-          # 8 slots: a node gate is 3 criteria x 2 repeats, a select over three candidates 30 short calls.
+          # 8 slots: an assessment is 3 calls, a select over three candidates 15; they fan out together.
           concurrency: 8
           retriesOnFallback: 1
-          # Serial warm-up of the prompt prefix saves prefill work but doubles gate wall-clock;
+          # Serial warm-up of the prompt prefix saves prefill work but doubles wall-clock;
           # on a local vLLM (prefill ~13k tok/s) the fan-out is the better trade.
           warmPrefix: false
-          # Effort for the verifier_* tools (the node gates the agent calls itself): `low`.
-          # Measured on the Spark pair with a 27k-token trajectory: high took 5 to 8 minutes
-          # per node gate, low with two repeats 4.3 minutes (six calls contend for the same
-          # GPUs), low with one repeat about 3. The end-of-turn gate keeps `high`.
-          # Empty = same as reasoningEffort.
-          toolReasoningEffort: low
         gate:
           enabled: true
           threshold: 0.6
           maxRounds: 1
+          # Repeats per criterion (K), gate and verifier_assess alike. 1 = three calls per gate.
           evaluations: 1
-          criteria: general
-          criteriaMode: auto
+          # auto: coding when the turn used tools, general otherwise. Or pin general | coding | terminal.
+          criteria: auto
           skipWhenAskingUser: true
-          minSteps: 1
           # A turn opened only by a subagent report or plugin notice is gated only with real work in it.
           minToolCallsWithoutOwnTask: 8
           skipSubagents: true
           feedbackMaxChars: 2500
           timeoutMs: 4200000
         select:
-          # One directed comparison per pair and criterion. Measured on the Spark pair: three
-          # candidates are 5 pairs x 3 criteria, and with 2 repeats (30 calls at low) a select
-          # took 12 minutes because the calls are generation-bound and share the GPUs; with 1
-          # repeat about 6. Set 2 to cancel slot bias by swapping A/B.
+          # One directed comparison per pair and criterion: three candidates are 5 pairs x 3 criteria,
+          # 15 calls. Set 2 to cancel slot bias by swapping A/B, at twice the calls.
           evaluations: 1
           pivots: 1
           seed: 0
           criteria: general
         trajectory:
           maxStepChars: 6000
+          # Over the cap the middle is elided; the opening and the most recent steps stay.
           maxTotalChars: 300000
           # A turn that opens with "Continue." gets this many earlier turns prepended.
           continuationTurns: 1
-          # Trajectory cap for the verifier_* tools; the end-of-turn gate uses maxTotalChars.
-          toolMaxTotalChars: 80000
         snapshot:
           # `ui_snapshot`: headless screenshots (viewports x light/dark) for analyze_image.
           enabled: true
@@ -75,33 +66,5 @@
           settleMs: 500
           navigationTimeoutMs: 30000
           dir: ""
-        checkpoint:
-          # Mid-turn verification: progress score every `everySteps` steps (reference
-          # progress prompt, one letter); steer with findings when low or falling.
-          enabled: true
-          minSteps: 40
-          everySteps: 40
-          evaluations: 1
-          threshold: 0.3
-          drop: 0.25
-          minRise: 0.05
-          stallReadings: 2
-          maxSteers: 3
-          # Deliver a triggered checkpoint only when its assessment scores below this (0 = gate.threshold).
-          # A progress reading that fell from 0.95 to 0.63 was assessed at 0.75: no steer, the agent was fine.
-          steerBelow: 0
-          # blocking: a triggered checkpoint is assessed while the agent waits at the next step boundary,
-          # so the findings describe the state the agent is in when it reads them.
-          deliver: blocking
-          # Checkpoints are frequent and block the agent when they trigger: `low` keeps them quick.
-          # The end-of-turn gate and the verifier_* tools keep backend.reasoningEffort (high).
-          reasoningEffort: low
-          # Remind the agent to gate after this many file edits without a verifier_* call.
-          gateDebtEdits: 12
-          editTools: [write, edit, str_replace_editor, apply_patch, notebook_edit]
-          timeoutMs: 3600000
         tools: true
-        # Repeats per criterion for verifier_assess (the agent's `evaluations` argument overrides).
-        # 2 adds a second reading per criterion at about 1.5x the wall-clock.
-        toolEvaluations: 1
         verbose: false

@@ -92,15 +92,3 @@ export declare function select(problem: string, candidates: string[], options: V
  * means instead of counting as a neutral 0.5, and reported as unscored.
  */
 export declare function assess(problem: string, trajectory: string, options: VerifierOptions): Promise<AssessResult>;
-export interface ProgressResult {
-    /** Mean progress over the scored repeats, in [0, 1]; 0.5 when nothing could be scored. */
-    score: number;
-    scoredRepeats: number;
-    sources: (ScoreSource | 'error')[];
-}
-/**
- * One-checkpoint progress score of a running trajectory (the reference
- * `ProgressTracker.update`): K repeats of the progress prompt, letter only,
- * averaged over the repeats that produced a verdict.
- */
-export declare function progress(problem: string, trajectory: string, nSteps: number, options: Pick<VerifierOptions, 'backend' | 'evaluations' | 'concurrency' | 'maxTokens' | 'temperature' | 'topLogprobs' | 'signal' | 'onCall' | 'warmPrefix' | 'reasoningEffort' | 'retriesOnFallback'>): Promise<ProgressResult>;
