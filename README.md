@@ -195,6 +195,14 @@ A verifier reply sometimes carries no parseable score tag. The plugin retries su
 ln -s /path/to/dsh-verifier-gate/skills/graph-verified-coding ~/.dsh/skills/graph-verified-coding
 ```
 
+## Day to day
+
+Nothing to start. The gate runs on its own at the end of every turn: a passing turn closes without a trace in the chat (the log says `PASSED`), a failing one gets the `[dsh-verifier-gate]` message and one repair round. Expect the agent to look busy for one to seven minutes after its last visible step; that is the gate thinking.
+
+The tools are registered in every session; whether the agent calls them is decided by the skill. Point your session at it once (`~/.dsh/AGENTS.md` or the equivalent: "for coding work that spans more than one file or step, has competing approaches, or runs unattended, load the skill `graph-verified-coding` first"), and the agent loads it for such work. To be sure on a given task, name it in the prompt ("load graph-verified-coding, then build ...") or use one of its trigger words: verify, gate, best-of. You can also ask for a tool directly: "make two variants and pick one with verifier_select", "assess the result with verifier_assess against the contract".
+
+For short chat sessions set `verifier: backend: reasoningEffort: low` or `none` in `settings.yaml` (hot-reloaded); `verifier: gate: enabled: false` keeps the tools and drops the gate. With `verbose: true` the host log (`dsh web` terminal, or `~/Library/Application Support/DSH Desktop/logs/dsh-<date>.log` for DSH Desktop) shows every verifier call with its duration and the gate verdict per turn.
+
 ## Development
 
 Typechecking needs a DeepSeek Harness checkout next to this repo (the `link:` devDependencies point at `../deepseek-harness`). The published `@deepseek-ai/dsh-*` packages on npm are an older generation and do not typecheck against the current harness.
