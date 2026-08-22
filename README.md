@@ -17,8 +17,8 @@ flowchart TD
         S --> E{"turn stopping"}
     end
     E -->|"gate: three calls at high over the<br/>whole turn plus the goal objective"| G{"score ≥ 0.6 ?"}
-    G -->|"yes"| C["turn closes"]
-    G -->|"no, once"| R["[dsh-verifier-gate] findings<br/>the agent repairs, then the turn closes"]
+    G -->|"yes, or a repair round<br/>already ran in this turn"| C["turn closes"]
+    G -->|"no, first time"| R["[dsh-verifier-gate] findings<br/>the agent repairs"]
     R --> S
     subgraph backend["verifier backend"]
         V["same model, OpenAI-compatible<br/>streamed, logprobs top 20<br/>score = expectation over the letter distribution"]
